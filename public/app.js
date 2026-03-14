@@ -3,13 +3,17 @@ const term = new window.Terminal({
   convertEol: true,
   customGlyphs: false,
   fontSize: 14,
+  fontFamily: '"Cascadia Mono", Consolas, monospace',
   scrollback: 5000,
   smoothScrollDuration: 0,
   theme: {
-    background: "#0f1117",
-    foreground: "#eef2ff"
+    background: "#111318",
+    foreground: "#f3f4f6",
+    selectionBackground: "#3b82f655",
+    selectionInactiveBackground: "#3b82f633"
   }
 });
+
 const fitAddon = new window.FitAddon.FitAddon();
 term.loadAddon(fitAddon);
 term.open(document.getElementById("terminal"));
@@ -22,20 +26,46 @@ const connectButton = document.getElementById("connect");
 const newSessionButton = document.getElementById("new-session");
 const refreshButton = document.getElementById("refresh");
 const closeSessionButton = document.getElementById("close-session");
+const browseUpButton = document.getElementById("browse-up");
+const syncBrowserPathButton = document.getElementById("sync-browser-path");
 const sessionsRoot = document.getElementById("sessions");
-const statusRoot = document.getElementById("status");
+const sessionLiveCountRoot = document.getElementById("session-live-count");
+const sessionSavedCountRoot = document.getElementById("session-saved-count");
+const sessionTotalCountRoot = document.getElementById("session-total-count");
+const homeStatusRoot = document.getElementById("home-status");
+const browserCurrentRoot = document.getElementById("browser-current");
+const directoryTreeRoot = document.getElementById("directory-tree");
+const activeSessionNameRoot = document.getElementById("active-session-name");
+const activeSessionMetaRoot = document.getElementById("active-session-meta");
 const viewConnect = document.getElementById("view-connect");
 const viewWorkspace = document.getElementById("view-workspace");
+const workspaceHome = document.getElementById("workspace-home");
+const workspaceTerminal = document.getElementById("workspace-terminal");
+const terminalTopbar = workspaceTerminal?.querySelector(".terminal-topbar");
 const sessionPanel = document.getElementById("session-panel");
+const panelBackdrop = document.getElementById("panel-backdrop");
 const openPanelButton = document.getElementById("open-panel");
 const closePanelButton = document.getElementById("close-panel");
 const backToConnectButton = document.getElementById("back-to-connect");
+const backToSessionsButton = document.getElementById("back-to-sessions");
 const terminalRoot = document.getElementById("terminal");
+const mobileComposer = document.getElementById("mobile-composer");
 const imeBridge = document.getElementById("ime-bridge");
+const composerEscButton = document.getElementById("composer-esc");
+const composerSendButton = document.getElementById("composer-send");
 const escKeyButton = document.getElementById("esc-key");
+const copyTerminalButton = document.getElementById("copy-terminal");
+const pasteTerminalButton = document.getElementById("paste-terminal");
+const clipboardSheet = document.getElementById("clipboard-sheet");
+const clipboardTitle = document.getElementById("clipboard-title");
+const clipboardHint = document.getElementById("clipboard-hint");
+const clipboardBuffer = document.getElementById("clipboard-buffer");
+const clipboardPrimaryButton = document.getElementById("clipboard-primary");
+const clipboardCloseButton = document.getElementById("clipboard-close");
 
 let accessToken = "";
 let activeSessionId = "";
+let activeSession = null;
 let socket = null;
 let sessions = [];
 let reconnectTimer = null;
@@ -46,8 +76,21 @@ let outputFrame = null;
 let viewportFrame = null;
 let keyboardWasOpen = false;
 let imeComposing = false;
+let clipboardMode = "";
+let latestStatus = "Disconnected";
+let mobileComposerValue = "";
+let browserState = {
+  path: "",
+  parentPath: "",
+  entries: [],
+  totalEntries: 0,
+  truncated: false
+};
 
 const useImeBridge = window.matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
+const enableMobileComposer = false;
+document.documentElement.classList.toggle("touch-input-mode", useImeBridge);
+document.documentElement.classList.toggle("mobile-composer-disabled", !enableMobileComposer);
 const melbourneFormatter = new Intl.DateTimeFormat("en-AU", {
   timeZone: "Australia/Melbourne",
   year: "numeric",
@@ -63,6 +106,130 @@ function clearReconnectTimer() {
     window.clearTimeout(reconnectTimer);
     reconnectTimer = null;
   }
+}
+
+function normalizeTextForTerminalPaste(value) {
+  return String(value || "").replace(/\r?\n/g, "\r");
+}
+
+function readTerminalBufferText() {
+  const buffer = term.buffer.active;
+  const lines = [];
+  let currentLine = "";
+  let hasLine = false;
+
+  for (let index = 0; index < buffer.length; index += 1) {
+    const line = buffer.getLine(index);
+    if (!line) {
+      continue;
+    }
+
+    const text = line.translateToString(true);
+    if (!hasLine) {
+      currentLine = text;
+      hasLine = true;
+      continue;
+    }
+
+    if (line.isWrapped) {
+      currentLine += text;
+      continue;
+    }
+
+    lines.push(currentLine);
+    currentLine = text;
+  }
+
+  if (hasLine) {
+    lines.push(currentLine);
+  }
+
+  return lines.join("\n");
+}
+
+function closeClipboardSheet({ restoreFocus = true } = {}) {
+  clipboardMode = "";
+  clipboardSheet.classList.add("hidden");
+  clipboardSheet.setAttribute("aria-hidden", "true");
+  clipboardBuffer.value = "";
+  clipboardBuffer.readOnly = false;
+
+  if (!restoreFocus) {
+    return;
+  }
+
+  if (useImeBridge) {
+    focusImeBridge();
+    return;
+  }
+
+  term.focus();
+}
+
+function openClipboardSheet(mode) {
+  clipboardMode = mode;
+  blurImeBridge();
+  clipboardSheet.classList.remove("hidden");
+  clipboardSheet.setAttribute("aria-hidden", "false");
+
+  if (mode === "copy") {
+    const text = readTerminalBufferText();
+    if (!text.trim()) {
+      closeClipboardSheet({ restoreFocus: false });
+      setStatus("No terminal output available to copy.");
+      return;
+    }
+
+    clipboardTitle.textContent = "Copy Terminal Text";
+    clipboardHint.textContent = "Long-press below to select any part of the terminal output.";
+    clipboardPrimaryButton.textContent = "Copy All";
+    clipboardBuffer.readOnly = true;
+    clipboardBuffer.value = text;
+  } else {
+    clipboardTitle.textContent = "Paste Into Terminal";
+    clipboardHint.textContent = "Long-press inside the box, paste text, then send it to the terminal.";
+    clipboardPrimaryButton.textContent = "Send to Terminal";
+    clipboardBuffer.readOnly = false;
+    clipboardBuffer.value = "";
+  }
+
+  window.requestAnimationFrame(() => {
+    clipboardBuffer.focus({ preventScroll: true });
+    const length = clipboardBuffer.value.length;
+    clipboardBuffer.setSelectionRange(length, length);
+    if (mode === "copy") {
+      clipboardBuffer.scrollTop = clipboardBuffer.scrollHeight;
+    }
+  });
+}
+
+async function handleClipboardPrimaryAction() {
+  if (clipboardMode === "copy") {
+    clipboardBuffer.focus({ preventScroll: true });
+    clipboardBuffer.select();
+    try {
+      if (window.isSecureContext && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(clipboardBuffer.value);
+        setStatus("Terminal text copied.");
+      } else {
+        setStatus("Text selected. Use your browser copy action.");
+      }
+    } catch {
+      setStatus("Text selected. Use your browser copy action.");
+    }
+    return;
+  }
+
+  const text = clipboardBuffer.value;
+  if (!text) {
+    setStatus("Paste text into the box first.");
+    return;
+  }
+
+  sendToSession(normalizeTextForTerminalPaste(text));
+  closeClipboardSheet();
+  scrollTerminalToLatest();
+  setStatus("Clipboard text sent to terminal.");
 }
 
 function flushPendingOutput() {
@@ -106,9 +273,81 @@ function scrollTerminalToLatest({ ensureVisible = false } = {}) {
   });
 }
 
+function lockRootScrollPosition() {
+  if (!useImeBridge || !document.documentElement.classList.contains("terminal-layer-mode")) {
+    return;
+  }
+
+  const scrollingRoot = document.scrollingElement;
+  if (scrollingRoot) {
+    scrollingRoot.scrollTop = 0;
+    scrollingRoot.scrollLeft = 0;
+  }
+  window.scrollTo(0, 0);
+}
+
+function deferRootScrollLock() {
+  if (!useImeBridge || !document.documentElement.classList.contains("terminal-layer-mode")) {
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    lockRootScrollPosition();
+  });
+}
+
+function setComposerExpanded(expanded) {
+  if (!enableMobileComposer) {
+    workspaceTerminal.classList.remove("composer-active");
+    return;
+  }
+  workspaceTerminal.classList.toggle("composer-active", Boolean(expanded));
+}
+
+function syncTerminalChromeBounds() {
+  if (!workspaceTerminal) {
+    return;
+  }
+
+  if (!useImeBridge || !document.documentElement.classList.contains("terminal-layer-mode")) {
+    workspaceTerminal.style.removeProperty("--terminal-header-height");
+    workspaceTerminal.style.removeProperty("--terminal-composer-height");
+    return;
+  }
+
+  const headerHeight = Math.ceil(terminalTopbar?.getBoundingClientRect().height || 0);
+  const composerHeight = enableMobileComposer
+    ? Math.ceil(mobileComposer?.getBoundingClientRect().height || 0)
+    : 0;
+  const headerOffset = headerHeight > 0 ? headerHeight + 6 : 0;
+  const composerOffset = composerHeight > 0 ? composerHeight + 6 : 0;
+  workspaceTerminal.style.setProperty("--terminal-header-height", `${headerOffset}px`);
+  workspaceTerminal.style.setProperty("--terminal-composer-height", `${composerOffset}px`);
+
+  if (!workspaceTerminal.classList.contains("hidden")) {
+    window.requestAnimationFrame(() => {
+      syncTerminalSize();
+    });
+  }
+}
+
+function syncComposerLayout() {
+  if (!useImeBridge || !enableMobileComposer) {
+    return;
+  }
+
+  imeBridge.style.height = "0px";
+  const minHeight = workspaceTerminal.classList.contains("composer-active") ? 84 : 44;
+  const nextHeight = Math.min(140, Math.max(minHeight, imeBridge.scrollHeight || 0));
+  imeBridge.style.height = `${nextHeight}px`;
+  syncTerminalChromeBounds();
+}
+
 function resetImeBridge() {
   imeBridge.value = "";
+  mobileComposerValue = "";
   imeComposing = false;
+  syncComposerLayout();
 }
 
 function focusImeBridge() {
@@ -116,9 +355,11 @@ function focusImeBridge() {
     return;
   }
 
+  setComposerExpanded(true);
   imeBridge.focus({ preventScroll: true });
   const length = imeBridge.value.length;
   imeBridge.setSelectionRange(length, length);
+  syncComposerLayout();
 }
 
 function blurImeBridge() {
@@ -127,21 +368,60 @@ function blurImeBridge() {
   }
 
   imeBridge.blur();
+  if (!imeBridge.value) {
+    setComposerExpanded(false);
+  }
 }
 
-function flushImeBridgeValue() {
+function syncImeBridgeValue() {
   if (imeComposing) {
     return;
   }
 
-  const value = imeBridge.value;
-  if (!value) {
+  const nextValue = String(imeBridge.value || "").replace(/\r/g, "");
+  if (imeBridge.value !== nextValue) {
+    imeBridge.value = nextValue;
+  }
+
+  if (nextValue === mobileComposerValue) {
+    syncComposerLayout();
     return;
   }
 
-  sendToSession(value);
+  if (nextValue.startsWith(mobileComposerValue)) {
+    sendToSession(nextValue.slice(mobileComposerValue.length));
+  } else if (mobileComposerValue.startsWith(nextValue)) {
+    sendToSession("\u007f".repeat(mobileComposerValue.length - nextValue.length));
+  } else {
+    if (mobileComposerValue.length) {
+      sendToSession("\u007f".repeat(mobileComposerValue.length));
+    }
+    if (nextValue) {
+      sendToSession(nextValue);
+    }
+  }
+
+  mobileComposerValue = nextValue;
+  syncComposerLayout();
+  scrollTerminalToLatest();
+}
+
+function submitImeBridge() {
+  if (!hasLiveSession()) {
+    setStatus("Open a session first.");
+    return;
+  }
+
+  syncImeBridgeValue();
+  sendToSession("\r");
   resetImeBridge();
-  scrollTerminalToLatest({ ensureVisible: keyboardWasOpen });
+  blurImeBridge();
+  requestViewportMetrics();
+  scrollTerminalToLatest();
+}
+
+function flushImeBridgeValue() {
+  syncImeBridgeValue();
 }
 
 function applyViewportMetrics() {
@@ -153,9 +433,20 @@ function applyViewportMetrics() {
   document.documentElement.style.setProperty("--vvh", `${viewportHeight}px`);
   document.documentElement.style.setProperty("--keyboard-inset", `${keyboardInset}px`);
   document.documentElement.classList.toggle("keyboard-open", keyboardOpen);
+  if (keyboardOpen) {
+    deferRootScrollLock();
+  }
+  if (useImeBridge) {
+    if (keyboardOpen) {
+      setComposerExpanded(true);
+    } else if (!imeBridge.matches(":focus") && !imeBridge.value) {
+      setComposerExpanded(false);
+    }
+    syncComposerLayout();
+  }
   syncTerminalSize();
   if (keyboardOpen) {
-    scrollTerminalToLatest({ ensureVisible: true });
+    scrollTerminalToLatest();
   }
   keyboardWasOpen = keyboardOpen;
 }
@@ -178,23 +469,50 @@ function setView(name) {
   viewWorkspace.classList.toggle("hidden", !workspace);
 }
 
+function setWorkspaceScreen(name) {
+  const terminal = name === "terminal";
+  workspaceHome.classList.toggle("hidden", terminal);
+  workspaceTerminal.classList.toggle("hidden", !terminal);
+  document.documentElement.classList.toggle("terminal-layer-mode", terminal && useImeBridge);
+  if (!terminal) {
+    setComposerExpanded(false);
+  }
+  deferRootScrollLock();
+  syncTerminalChromeBounds();
+  syncComposerLayout();
+}
+
 function setPanelOpen(open) {
-  sessionPanel.classList.toggle("hidden", !open);
+  sessionPanel.classList.toggle("open", open);
+  panelBackdrop.classList.toggle("hidden", !open);
+  sessionPanel.setAttribute("aria-hidden", String(!open));
+  document.body.classList.toggle("panel-open", open);
 }
 
 function updateInputControls() {
   const enabled = hasLiveSession();
   escKeyButton.disabled = !enabled;
   imeBridge.disabled = !enabled;
+  composerEscButton.disabled = !enabled || !enableMobileComposer;
+  composerSendButton.disabled = !enabled || !enableMobileComposer;
+  copyTerminalButton.disabled = !activeSessionId;
+  pasteTerminalButton.disabled = !enabled;
+  closeSessionButton.disabled = !activeSessionId;
+
   if (!enabled) {
     resetImeBridge();
     blurImeBridge();
+    setComposerExpanded(false);
     clearReconnectTimer();
   }
 }
 
 function setStatus(text) {
-  statusRoot.textContent = text;
+  latestStatus = String(text || "").trim() || "Disconnected";
+  if (homeStatusRoot) {
+    homeStatusRoot.textContent = latestStatus;
+  }
+  updateWorkspaceSummary();
 }
 
 function headers() {
@@ -209,6 +527,91 @@ function formatTime(value) {
   } catch {
     return value || "";
   }
+}
+
+function humanFileSize(bytes) {
+  if (!Number.isFinite(bytes) || bytes < 0) {
+    return "";
+  }
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 102.4) / 10} KB`;
+  }
+  return `${Math.round(bytes / 104857.6) / 10} MB`;
+}
+
+async function copyText(text, fallbackStatus) {
+  const value = String(text || "");
+  if (!value) {
+    return false;
+  }
+
+  try {
+    if (window.isSecureContext && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch {
+    // Fallback to selection-based copy below.
+  }
+
+  clipboardTitle.textContent = "Copy Path";
+  clipboardHint.textContent = "Select the path below and use your browser copy action.";
+  clipboardPrimaryButton.textContent = "Select All";
+  clipboardMode = "copy";
+  clipboardSheet.classList.remove("hidden");
+  clipboardSheet.setAttribute("aria-hidden", "false");
+  clipboardBuffer.readOnly = true;
+  clipboardBuffer.value = value;
+
+  window.requestAnimationFrame(() => {
+    clipboardBuffer.focus({ preventScroll: true });
+    clipboardBuffer.select();
+  });
+
+  if (fallbackStatus) {
+    setStatus(fallbackStatus);
+  }
+  return false;
+}
+
+function updateWorkspaceSummaryLegacy() {
+  return;
+
+  if (activeSession) {
+    const parts = [activeSession.status || "unknown"];
+    if (activeSession.cwd) {
+      parts.push(activeSession.cwd);
+    }
+    activeSessionMetaRoot.textContent = parts.join(" · ");
+  } else {
+    activeSessionMetaRoot.textContent = "Connect, then open a session.";
+  }
+
+  browserPillRoot.textContent = browserState.path || "Not loaded";
+}
+
+function updateWorkspaceSummary() {
+  activeSessionNameRoot.textContent = activeSession?.name || "No active session";
+
+  if (activeSession) {
+    const parts = [];
+    if (latestStatus) {
+      parts.push(latestStatus);
+    }
+    if (activeSession.status && activeSession.status !== latestStatus) {
+      parts.push(activeSession.status);
+    }
+    if (activeSession.cwd) {
+      parts.push(activeSession.cwd);
+    }
+    activeSessionMetaRoot.textContent = parts.join(" | ");
+    return;
+  }
+
+  activeSessionMetaRoot.textContent = "Open a session to start.";
 }
 
 async function request(url, options = {}) {
@@ -249,70 +652,122 @@ async function logoutSession() {
   isAuthenticated = false;
 }
 
+function buildSectionLabel(text) {
+  const label = document.createElement("div");
+  label.className = "session-section-label";
+  label.textContent = text;
+  return label;
+}
+
+function buildEmptyState(title, description) {
+  const empty = document.createElement("div");
+  empty.className = "session-empty";
+
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+  empty.appendChild(heading);
+
+  const body = document.createElement("p");
+  body.textContent = description;
+  empty.appendChild(body);
+  return empty;
+}
+
 function renderSessions() {
   sessionsRoot.innerHTML = "";
-  if (!sessions.length) {
-    const empty = document.createElement("div");
-    empty.className = "session-empty";
-    empty.innerHTML = `
-      <h3>No sessions yet</h3>
-      <p>Create a new session here. If you leave the name blank, the first prompt you send will become the title automatically.</p>
-    `;
-    sessionsRoot.appendChild(empty);
-    return;
-  }
-
   const liveSessions = sessions.filter((session) => session.kind === "live");
   const savedSessions = sessions.filter((session) => session.kind === "history");
 
+  sessionLiveCountRoot.textContent = String(liveSessions.length);
+  sessionSavedCountRoot.textContent = String(savedSessions.length);
+  sessionTotalCountRoot.textContent = String(sessions.length);
+
+  if (!sessions.length) {
+    sessionsRoot.appendChild(
+      buildEmptyState(
+        "No sessions yet",
+        "Create a new session here. If the name is blank, the first prompt will become the title."
+      )
+    );
+    return;
+  }
+
   if (liveSessions.length) {
-    const section = document.createElement("div");
-    section.className = "session-section-label";
-    section.textContent = "Live in browser";
-    sessionsRoot.appendChild(section);
+    sessionsRoot.appendChild(buildSectionLabel("Live in browser"));
     for (const session of liveSessions) {
       sessionsRoot.appendChild(buildSessionCard(session));
     }
   }
 
   if (savedSessions.length) {
-    const section = document.createElement("div");
-    section.className = "session-section-label";
-    section.textContent = "Saved Codex sessions";
-    sessionsRoot.appendChild(section);
+    sessionsRoot.appendChild(buildSectionLabel("Saved Codex sessions"));
     for (const session of savedSessions) {
       sessionsRoot.appendChild(buildSessionCard(session));
     }
   }
 }
 
+function buildBadge(text, extraClass = "") {
+  const badge = document.createElement("span");
+  badge.className = `session-badge${extraClass ? ` ${extraClass}` : ""}`;
+  badge.textContent = text;
+  return badge;
+}
+
 function buildSessionCard(session) {
   const card = document.createElement("button");
   const isCurrent = session.kind === "live" && session.id === activeSessionId;
   card.className = `session-card${isCurrent ? " active" : ""}`;
-  const preview = session.inputPreview
-    ? `<p class="session-preview">${session.inputPreview}</p>`
-    : `<p class="session-preview muted">No prompt preview available</p>`;
-  const currentBadge = isCurrent ? `<span class="session-badge">Current</span>` : "";
-  const kindBadge =
-    session.kind === "history"
-      ? `<span class="session-badge ghost-badge">Saved</span>`
-      : "";
-  card.innerHTML = `
-    <div class="session-card-head">
-      <h3>${session.name}</h3>
-      <div class="session-badge-row">
-        ${currentBadge}
-        ${kindBadge}
-      </div>
-    </div>
-    ${preview}
-    <p>Status: ${session.status}</p>
-    <p>Folder: ${session.cwd}</p>
-    <p>Updated: ${formatTime(session.updatedAt)}</p>
-  `;
+
+  const head = document.createElement("div");
+  head.className = "session-card-head";
+
+  const title = document.createElement("h3");
+  title.textContent = session.name;
+  head.appendChild(title);
+
+  const badgeRow = document.createElement("div");
+  badgeRow.className = "session-badge-row";
+  if (isCurrent) {
+    badgeRow.appendChild(buildBadge("Current"));
+  }
+  if (session.kind === "history") {
+    badgeRow.appendChild(buildBadge("Saved", "ghost-badge"));
+  }
+  head.appendChild(badgeRow);
+  card.appendChild(head);
+
+  const preview = document.createElement("p");
+  preview.className = `session-preview${session.inputPreview ? "" : " muted"}`;
+  preview.textContent = session.inputPreview || "No prompt preview available";
+  card.appendChild(preview);
+
+  const metaGrid = document.createElement("div");
+  metaGrid.className = "session-meta-grid";
+  metaGrid.appendChild(buildSessionMeta("Status", session.status));
+  metaGrid.appendChild(buildSessionMeta("Folder", session.cwd));
+  metaGrid.appendChild(buildSessionMeta("Updated", formatTime(session.updatedAt)));
+  card.appendChild(metaGrid);
+
   card.addEventListener("click", () => activateSessionFromList(session));
   return card;
+}
+
+function buildSessionMeta(label, value) {
+  const item = document.createElement("p");
+  item.className = "session-meta-line";
+
+  const caption = document.createElement("span");
+  caption.className = "session-meta-label";
+  caption.textContent = `${label}: `;
+  item.appendChild(caption);
+
+  const body = document.createElement("span");
+  body.className = "session-meta-value";
+  body.textContent = value || "—";
+  item.appendChild(body);
+
+  return item;
 }
 
 async function activateSessionFromList(session) {
@@ -328,6 +783,7 @@ async function activateSessionFromList(session) {
       });
       await refreshSessions();
       await openSession(payload.session.id);
+      await loadDirectory(session.cwd);
     } catch (err) {
       setStatus(err.message || String(err));
     }
@@ -335,12 +791,20 @@ async function activateSessionFromList(session) {
   }
 
   await openSession(session.id);
+  await loadDirectory(session.cwd);
 }
 
 async function refreshSessions() {
   const payload = await request("/api/sessions");
   sessions = payload.sessions || [];
+  activeSession = sessions.find((session) => session.id === activeSessionId) || activeSession;
+  if (activeSessionId && !sessions.some((session) => session.id === activeSessionId)) {
+    activeSession = null;
+    activeSessionId = "";
+  }
   renderSessions();
+  updateWorkspaceSummary();
+  updateInputControls();
 }
 
 function syncTerminalSize() {
@@ -395,9 +859,12 @@ async function connectToSession(sessionId, { resetTerminal = true, allowReconnec
   }
 
   activeSessionId = sessionId;
+  activeSession = sessions.find((session) => session.id === sessionId) || activeSession;
   renderSessions();
-  closeSessionButton.disabled = false;
+  updateWorkspaceSummary();
+  setWorkspaceScreen("terminal");
   setPanelOpen(false);
+
   if (resetTerminal) {
     pendingOutput = "";
     if (outputFrame !== null) {
@@ -414,9 +881,11 @@ async function connectToSession(sessionId, { resetTerminal = true, allowReconnec
   socket = ws;
 
   ws.addEventListener("open", async () => {
-    setStatus(`Connected to ${sessionId}`);
+    setStatus("connected");
     syncTerminalSize();
-    term.focus();
+    if (!useImeBridge) {
+      term.focus();
+    }
     updateInputControls();
     await refreshSessions();
   });
@@ -424,8 +893,10 @@ async function connectToSession(sessionId, { resetTerminal = true, allowReconnec
   ws.addEventListener("message", async (event) => {
     const payload = JSON.parse(event.data);
     if (payload.type === "snapshot") {
+      activeSession = payload.session || activeSession;
+      updateWorkspaceSummary();
       queueTerminalOutput(payload.buffer || "");
-      setStatus(`${payload.session.name} (${payload.session.status})`);
+      setStatus(payload.session.status || "running");
       return;
     }
     if (payload.type === "data") {
@@ -433,7 +904,7 @@ async function connectToSession(sessionId, { resetTerminal = true, allowReconnec
       return;
     }
     if (payload.type === "exit") {
-      setStatus(`Session exited with code ${payload.exitCode}`);
+      setStatus(`exited ${payload.exitCode}`);
       await refreshSessions();
       return;
     }
@@ -446,7 +917,7 @@ async function connectToSession(sessionId, { resetTerminal = true, allowReconnec
     if (socket === ws) {
       socket = null;
     }
-    setStatus("Disconnected");
+    setStatus("disconnected");
     updateInputControls();
     if (!isManualDisconnect && allowReconnect) {
       scheduleReconnect();
@@ -463,6 +934,7 @@ async function connectToSession(sessionId, { resetTerminal = true, allowReconnec
 async function openSession(sessionId) {
   isManualDisconnect = false;
   await connectToSession(sessionId, { resetTerminal: true, allowReconnect: true });
+  await loadDirectory(activeSession?.cwd || "");
 }
 
 function sendToSession(data) {
@@ -472,6 +944,109 @@ function sendToSession(data) {
   }
 
   socket.send(JSON.stringify({ type: "input", data }));
+}
+
+function buildDirectoryEntry(entry) {
+  const item = document.createElement("button");
+  item.className = `directory-entry ${entry.type}`;
+
+  const icon = document.createElement("span");
+  icon.className = "directory-icon";
+  icon.textContent = entry.type === "directory" ? "DIR" : "FILE";
+  item.appendChild(icon);
+
+  const copy = document.createElement("div");
+  copy.className = "directory-copy";
+
+  const name = document.createElement("strong");
+  name.textContent = entry.name;
+  copy.appendChild(name);
+
+  const meta = document.createElement("span");
+  if (entry.type === "directory") {
+    meta.textContent = entry.path;
+  } else {
+    const sizeText = humanFileSize(entry.size);
+    meta.textContent = sizeText ? `${sizeText} · ${entry.path}` : entry.path;
+  }
+  copy.appendChild(meta);
+  item.appendChild(copy);
+  item.innerHTML = "";
+  item.textContent = entry.type === "directory" ? `${entry.name}\\` : entry.name;
+
+  item.addEventListener("click", async () => {
+    if (entry.type === "directory") {
+      await loadDirectory(entry.path);
+      return;
+    }
+
+    const copied = await copyText(entry.path, "Path selected. Use your browser copy action.");
+    if (copied) {
+      setStatus(`Copied ${entry.path}`);
+      return;
+    }
+    setStatus(entry.path);
+  });
+
+  return item;
+}
+
+function renderDirectoryBrowser() {
+  directoryTreeRoot.innerHTML = "";
+
+  if (!browserState.path) {
+    directoryTreeRoot.appendChild(
+      buildEmptyState("No folder loaded", "Open a session first, then use the menu to browse files.")
+    );
+    updateWorkspaceSummary();
+    return;
+  }
+
+  const summary = document.createElement("div");
+  summary.className = "directory-summary";
+  summary.textContent = browserState.truncated
+    ? `Showing first ${browserState.entries.length} of ${browserState.totalEntries} entries.`
+    : `${browserState.totalEntries} entries`;
+  directoryTreeRoot.appendChild(summary);
+
+  if (!browserState.entries.length) {
+    directoryTreeRoot.appendChild(
+      buildEmptyState("This folder is empty", "Go up one level or sync back to the session directory.")
+    );
+    updateWorkspaceSummary();
+    return;
+  }
+
+  for (const entry of browserState.entries) {
+    directoryTreeRoot.appendChild(buildDirectoryEntry(entry));
+  }
+
+  updateWorkspaceSummary();
+}
+
+async function loadDirectory(targetPath = "") {
+  try {
+    const requestedPath =
+      String(targetPath || "").trim() ||
+      activeSession?.cwd ||
+      cwdInput.value.trim();
+    const query = requestedPath ? `?path=${encodeURIComponent(requestedPath)}` : "";
+    const payload = await request(`/api/fs${query}`);
+
+    browserState = {
+      ...browserState,
+      path: payload.path || "",
+      parentPath: payload.parentPath || "",
+      entries: payload.entries || [],
+      totalEntries: payload.totalEntries || 0,
+      truncated: Boolean(payload.truncated)
+    };
+
+    browserCurrentRoot.textContent = payload.path || "No folder loaded.";
+    renderDirectoryBrowser();
+  } catch (err) {
+    setStatus(err.message || String(err));
+  }
 }
 
 connectButton.addEventListener("click", async () => {
@@ -488,7 +1063,8 @@ connectButton.addEventListener("click", async () => {
     newSessionButton.disabled = false;
     refreshButton.disabled = false;
     setView("workspace");
-    setPanelOpen(true);
+    setWorkspaceScreen("home");
+    setPanelOpen(false);
     setStatus("Connected. Create or open a session.");
     await refreshSessions();
     updateInputControls();
@@ -533,11 +1109,13 @@ closeSessionButton.addEventListener("click", async () => {
     pendingOutput = "";
     term.reset();
     activeSessionId = "";
-    closeSessionButton.disabled = true;
+    activeSession = null;
     updateInputControls();
+    updateWorkspaceSummary();
     await refreshSessions();
     setStatus("Session closed.");
-    setPanelOpen(true);
+    setWorkspaceScreen("home");
+    setPanelOpen(false);
   } catch (err) {
     setStatus(err.message || String(err));
   }
@@ -551,17 +1129,89 @@ closePanelButton.addEventListener("click", () => {
   setPanelOpen(false);
 });
 
+panelBackdrop.addEventListener("click", () => {
+  setPanelOpen(false);
+});
+
 backToConnectButton.addEventListener("click", () => {
   isManualDisconnect = true;
   disconnectSocket();
+  closeClipboardSheet({ restoreFocus: false });
   activeSessionId = "";
-  closeSessionButton.disabled = true;
+  activeSession = null;
   setPanelOpen(false);
+  setWorkspaceScreen("home");
   setView("connect");
   term.reset();
   setStatus("Disconnected");
   logoutSession();
+  updateWorkspaceSummary();
 });
+
+backToSessionsButton.addEventListener("click", async () => {
+  isManualDisconnect = true;
+  disconnectSocket();
+  activeSessionId = "";
+  activeSession = null;
+  setPanelOpen(false);
+  setWorkspaceScreen("home");
+  term.reset();
+  await refreshSessions();
+  setStatus("Choose another session.");
+});
+
+copyTerminalButton.addEventListener("click", () => {
+  openClipboardSheet("copy");
+});
+
+pasteTerminalButton.addEventListener("click", () => {
+  if (!hasLiveSession()) {
+    setStatus("Open a session first.");
+    return;
+  }
+  openClipboardSheet("paste");
+});
+
+clipboardPrimaryButton.addEventListener("click", async () => {
+  if (clipboardTitle.textContent === "Copy Path") {
+    clipboardBuffer.focus({ preventScroll: true });
+    clipboardBuffer.select();
+    setStatus("Path selected. Use your browser copy action.");
+    return;
+  }
+
+  await handleClipboardPrimaryAction();
+});
+
+clipboardCloseButton.addEventListener("click", () => {
+  closeClipboardSheet();
+});
+
+browseUpButton.addEventListener("click", async () => {
+  if (!browserState.parentPath) {
+    setStatus("Already at the top folder.");
+    return;
+  }
+  await loadDirectory(browserState.parentPath);
+});
+
+syncBrowserPathButton.addEventListener("click", async () => {
+  const nextPath = activeSession?.cwd || cwdInput.value.trim() || browserState.path;
+  if (!nextPath) {
+    setStatus("No session folder available.");
+    return;
+  }
+  await loadDirectory(nextPath);
+});
+
+if (enableMobileComposer) {
+  mobileComposer.addEventListener("click", (event) => {
+    if (event.target === composerEscButton || event.target === composerSendButton) {
+      return;
+    }
+    focusImeBridge();
+  });
+}
 
 if (!useImeBridge) {
   term.onData((data) => {
@@ -613,6 +1263,12 @@ window.addEventListener("pageshow", () => {
   }
 });
 
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && sessionPanel.classList.contains("open")) {
+    setPanelOpen(false);
+  }
+});
+
 window.visualViewport?.addEventListener("resize", requestViewportMetrics);
 window.visualViewport?.addEventListener("scroll", requestViewportMetrics);
 
@@ -625,6 +1281,18 @@ imeBridge.addEventListener("compositionend", () => {
   flushImeBridgeValue();
 });
 
+imeBridge.addEventListener("focus", () => {
+  setComposerExpanded(true);
+  syncComposerLayout();
+});
+
+imeBridge.addEventListener("blur", () => {
+  if (!imeBridge.value && !keyboardWasOpen) {
+    setComposerExpanded(false);
+  }
+  syncComposerLayout();
+});
+
 imeBridge.addEventListener("input", () => {
   flushImeBridgeValue();
 });
@@ -632,12 +1300,7 @@ imeBridge.addEventListener("input", () => {
 imeBridge.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
-    flushImeBridgeValue();
-    sendToSession("\r");
-    resetImeBridge();
-    blurImeBridge();
-    requestViewportMetrics();
-    scrollTerminalToLatest({ ensureVisible: true });
+    submitImeBridge();
     return;
   }
 
@@ -650,6 +1313,9 @@ imeBridge.addEventListener("keydown", (event) => {
   if (event.key === "Tab") {
     event.preventDefault();
     sendToSession("\t");
+    imeBridge.value += "\t";
+    mobileComposerValue = imeBridge.value;
+    syncComposerLayout();
     return;
   }
 
@@ -666,6 +1332,15 @@ imeBridge.addEventListener("keydown", (event) => {
   }
 });
 
+composerEscButton.addEventListener("click", () => {
+  sendToSession("\u001b");
+  focusImeBridge();
+});
+
+composerSendButton.addEventListener("click", () => {
+  submitImeBridge();
+});
+
 escKeyButton.addEventListener("click", () => {
   sendToSession("\u001b");
   if (useImeBridge && keyboardWasOpen) {
@@ -677,6 +1352,9 @@ escKeyButton.addEventListener("click", () => {
 });
 
 updateInputControls();
+updateWorkspaceSummary();
 setView("connect");
+setWorkspaceScreen("home");
 setPanelOpen(false);
+syncComposerLayout();
 requestViewportMetrics();

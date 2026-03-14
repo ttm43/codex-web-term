@@ -19,6 +19,7 @@ const loginAttempts = new Map();
 const startedAt = nowMs();
 let shuttingDown = false;
 let shutdownPromise = null;
+const directoryBrowserLimit = 400;
 
 function nowMs() {
   return Date.now();
@@ -355,6 +356,71 @@ function parseJson(body) {
   return JSON.parse(body);
 }
 
+function resolveBrowserPath(rawPath) {
+  const requested = String(rawPath || "").trim();
+  const resolved = path.resolve(requested || config.defaultCwd);
+  if (!fs.existsSync(resolved)) {
+    throw new Error(`Path does not exist: ${resolved}`);
+  }
+  return resolved;
+}
+
+function listDirectoryPayload(rawPath) {
+  const resolved = resolveBrowserPath(rawPath);
+  const stat = fs.statSync(resolved);
+  if (!stat.isDirectory()) {
+    throw new Error(`Path is not a directory: ${resolved}`);
+  }
+
+  const entries = [];
+  for (const entry of fs.readdirSync(resolved, { withFileTypes: true })) {
+    const fullPath = path.join(resolved, entry.name);
+    try {
+      const entryStat = fs.statSync(fullPath);
+      let type = "other";
+      if (entryStat.isDirectory()) {
+        type = "directory";
+      } else if (entryStat.isFile()) {
+        type = "file";
+      }
+
+      entries.push({
+        name: entry.name,
+        path: fullPath,
+        type,
+        size: entryStat.isFile() ? entryStat.size : null
+      });
+    } catch {
+      // Ignore entries that cannot be read.
+    }
+  }
+
+  entries.sort((left, right) => {
+    if (left.type !== right.type) {
+      if (left.type === "directory") {
+        return -1;
+      }
+      if (right.type === "directory") {
+        return 1;
+      }
+    }
+    return left.name.localeCompare(right.name, undefined, {
+      numeric: true,
+      sensitivity: "base"
+    });
+  });
+
+  const rootPath = path.parse(resolved).root;
+  return {
+    path: resolved,
+    parentPath: resolved === rootPath ? null : path.dirname(resolved),
+    rootPath,
+    entries: entries.slice(0, directoryBrowserLimit),
+    totalEntries: entries.length,
+    truncated: entries.length > directoryBrowserLimit
+  };
+}
+
 function routeVendor(res, pathname) {
   const vendorMap = {
     "/vendor/xterm.css": path.join(
@@ -500,6 +566,21 @@ const server = http.createServer(async (req, res) => {
     }
 
     json(res, 200, { sessions: sessionManager.listAll() });
+    return;
+  }
+
+  if (url.pathname === "/api/fs" && req.method === "GET") {
+    if (!isAuthorized(req)) {
+      clearAuthCookie(res);
+      unauthorized(res);
+      return;
+    }
+
+    try {
+      json(res, 200, listDirectoryPayload(url.searchParams.get("path")));
+    } catch (err) {
+      json(res, 400, { error: err?.message || String(err) });
+    }
     return;
   }
 

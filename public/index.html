@@ -12,8 +12,12 @@
       <section class="view view-connect" id="view-connect">
         <div class="connect-card">
           <div class="brand">
-            <h1>Codex Web Term</h1>
-            <p>Connect first, then manage sessions in the workspace page.</p>
+            <div class="brand-mark">CW</div>
+            <div>
+              <p class="eyebrow">Browser terminal</p>
+              <h1>Codex Web Term</h1>
+              <p>Authenticate once, then switch sessions and browse project paths from the side menu.</p>
+            </div>
           </div>
           <label class="field">
             <span>Access token</span>
@@ -22,59 +26,170 @@
           <div class="actions single">
             <button id="connect">Connect</button>
           </div>
-          <p class="hint">After connecting, you will enter a separate workspace page for session selection and terminal control.</p>
+          <p class="hint">The workspace keeps sessions on the left and terminal control on the right.</p>
         </div>
       </section>
 
       <section class="view view-workspace hidden" id="view-workspace">
-        <aside class="session-panel hidden" id="session-panel">
-          <div class="session-panel-header">
-            <div>
-              <h2>All Sessions</h2>
-              <p>Pick a session to switch, or start a fresh Codex run.</p>
+        <div class="panel-backdrop hidden" id="panel-backdrop"></div>
+
+        <aside class="session-panel" id="session-panel" aria-hidden="true">
+          <div class="session-panel-shell">
+            <div class="session-panel-top">
+              <div>
+                <p class="section-kicker">Project files</p>
+                <h2>Current folder</h2>
+              </div>
+              <button id="close-panel" class="icon-button ghost" type="button" aria-label="Close menu">Close</button>
             </div>
-            <button id="close-panel" class="ghost">Close</button>
+
+            <section class="sidebar-section">
+              <div class="sidebar-section-head">
+                <div>
+                  <p class="section-kicker">Project paths</p>
+                  <h2>Browse files</h2>
+                </div>
+              </div>
+              <div class="directory-actions">
+                <button id="browse-up" class="ghost" type="button">Up</button>
+                <button id="sync-browser-path" class="ghost" type="button">Session Dir</button>
+              </div>
+              <div id="browser-current" class="browser-current">No folder loaded.</div>
+              <div id="directory-tree" class="directory-tree"></div>
+            </section>
           </div>
-          <label class="field">
-            <span>Working directory</span>
-            <input id="cwd" type="text" placeholder="Leave blank to use your home directory" />
-          </label>
-          <label class="field">
-            <span>Session name</span>
-            <input id="session-name" type="text" placeholder="Optional label" />
-          </label>
-          <div class="actions">
-            <button id="new-session" disabled>New Session</button>
-            <button id="refresh" disabled>Refresh</button>
-          </div>
-          <div id="sessions" class="sessions"></div>
         </aside>
 
         <main class="main">
-          <div class="toolbar">
-            <div class="toolbar-left">
-              <button id="back-to-connect" class="ghost">Back</button>
-              <button id="open-panel" class="ghost">Sessions</button>
+          <section class="workspace-screen" id="workspace-home">
+            <section class="session-rack session-rack-home">
+              <div class="session-home-grid">
+                <section class="session-launchpad">
+                  <div class="session-rack-head">
+                    <div>
+                      <p class="section-kicker">Start</p>
+                      <h3>New session</h3>
+                    </div>
+                    <button id="back-to-connect" class="ghost session-back-button" type="button">Back</button>
+                  </div>
+                  <p class="session-launchpad-copy">
+                    Start from a folder, give the session a short name if needed, then open it in the CLI page.
+                  </p>
+                  <div class="session-rack-form">
+                    <label class="field">
+                      <span>Working directory</span>
+                      <input id="cwd" type="text" placeholder="Leave blank to use your home directory" />
+                    </label>
+                    <label class="field">
+                      <span>Session name</span>
+                      <input id="session-name" type="text" placeholder="Optional label" />
+                    </label>
+                    <div class="actions">
+                      <button id="new-session" disabled>New Session</button>
+                      <button id="refresh" disabled>Refresh</button>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="session-library">
+                  <div class="session-library-head">
+                    <div>
+                      <p class="section-kicker">Library</p>
+                      <h3>Run and switch</h3>
+                    </div>
+                    <div class="session-stats" aria-label="Session overview">
+                      <div class="session-stat">
+                        <strong id="session-live-count">0</strong>
+                        <span>Live</span>
+                      </div>
+                      <div class="session-stat">
+                        <strong id="session-saved-count">0</strong>
+                        <span>Saved</span>
+                      </div>
+                      <div class="session-stat">
+                        <strong id="session-total-count">0</strong>
+                        <span>Total</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div id="sessions" class="sessions session-rack-list"></div>
+                </section>
+              </div>
+            </section>
+          </section>
+
+          <section class="workspace-screen hidden" id="workspace-terminal">
+            <div class="workspace-topbar terminal-topbar">
+              <div class="terminal-topbar-main">
+                <div class="toolbar-left">
+                  <button id="back-to-sessions" class="ghost" type="button">Sessions</button>
+                  <button id="open-panel" class="icon-button ghost" type="button" aria-label="Open menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </button>
+                </div>
+                <div class="toolbar-title">
+                  <p class="section-kicker">Codex CLI</p>
+                  <h2 id="active-session-name">No active session</h2>
+                  <p id="active-session-meta" class="toolbar-meta">Open a session to start.</p>
+                </div>
+              </div>
+              <div class="toolbar-actions terminal-actions">
+                <button id="copy-terminal" class="ghost" disabled>Copy</button>
+                <button id="paste-terminal" class="ghost" disabled>Paste</button>
+                <button id="close-session" disabled>Close Session</button>
+              </div>
             </div>
-            <div id="status">Disconnected</div>
-            <button id="close-session" disabled>Close Session</button>
-          </div>
-          <div class="terminal-shell">
-            <div id="terminal" class="terminal"></div>
-            <textarea
-              id="ime-bridge"
-              class="ime-bridge"
-              autocapitalize="off"
-              autocomplete="off"
-              autocorrect="off"
-              spellcheck="false"
-              enterkeyhint="send"
-              aria-label="Terminal input"
-            ></textarea>
-            <button id="esc-key" type="button" aria-label="Send Escape">Esc</button>
-          </div>
+
+            <div class="terminal-shell terminal-shell-page">
+              <div id="terminal" class="terminal"></div>
+              <button id="esc-key" type="button" aria-label="Send Escape">Esc</button>
+            </div>
+            <div class="mobile-composer" id="mobile-composer">
+              <button id="composer-esc" class="composer-side ghost" type="button" aria-label="Send Escape">Esc</button>
+              <div class="composer-input-shell">
+                <textarea
+                  id="ime-bridge"
+                  class="ime-bridge"
+                  autocapitalize="off"
+                  autocomplete="off"
+                  autocorrect="off"
+                  spellcheck="false"
+                  enterkeyhint="send"
+                  rows="1"
+                  placeholder="Type into Codex"
+                  aria-label="Terminal input"
+                ></textarea>
+              </div>
+              <button id="composer-send" class="composer-send" type="button" aria-label="Send command">Enter</button>
+            </div>
+          </section>
         </main>
       </section>
+    </div>
+
+    <div class="clipboard-sheet hidden" id="clipboard-sheet" aria-hidden="true">
+      <div class="clipboard-card">
+        <div class="clipboard-card-header">
+          <div>
+            <h3 id="clipboard-title">Copy Terminal Text</h3>
+            <p id="clipboard-hint">Long-press below to select and copy.</p>
+          </div>
+          <button id="clipboard-close" class="ghost" type="button">Close</button>
+        </div>
+        <textarea
+          id="clipboard-buffer"
+          class="clipboard-buffer"
+          autocapitalize="off"
+          autocomplete="off"
+          autocorrect="off"
+          spellcheck="false"
+        ></textarea>
+        <div class="clipboard-actions">
+          <button id="clipboard-primary" type="button">Copy All</button>
+        </div>
+      </div>
     </div>
 
     <script src="/vendor/xterm.js"></script>
