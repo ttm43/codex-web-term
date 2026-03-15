@@ -554,7 +554,9 @@ const server = http.createServer(async (req, res) => {
       host: config.host,
       port: config.port,
       defaultCwd: config.defaultCwd,
-      timezone: config.timezone
+      timezone: config.timezone,
+      defaultProvider: "codex",
+      providers: sessionManager.providerCatalog()
     });
     return;
   }

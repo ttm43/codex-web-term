@@ -73,6 +73,16 @@ function sanitizeTitleFragment(value) {
     .trim();
 }
 
+function stripTerminalControlSequences(value) {
+  return String(value || "")
+    .replace(/\u001b\][^\u0007]*(?:\u0007|\u001b\\)/g, " ")
+    .replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, " ")
+    .replace(/\u001b[@-_]/g, " ")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function extractEmbeddedUserRequest(value) {
   const text = String(value || "");
   const userRequestMarker = "User request:";
@@ -112,7 +122,7 @@ function extractEmbeddedUserRequest(value) {
 
 function deriveSessionTitle(value, fallback) {
   const clean = sanitizeTitleFragment(extractEmbeddedUserRequest(value))
-    .replace(/^(codex|continue|resume)\s*/i, "")
+    .replace(/^(codex|continue|resume|claude|cc)\s*/i, "")
     .trim();
   if (!clean) {
     return fallback;
@@ -137,7 +147,10 @@ function isLowSignalTitle(value) {
     lower.includes("available skills") ||
     lower.includes("skill.md") ||
     lower.includes("environment_context") ||
-    lower.includes("imported context from the selected codex session")
+    lower.includes("imported context from the selected codex session") ||
+    lower.includes("local-command-caveat") ||
+    lower.includes("invalid api key") ||
+    lower.includes("please run /login")
   );
 }
 
@@ -157,6 +170,14 @@ function isBoilerplateUserText(value) {
     originalLower.includes("a skill is a set of local instructions") ||
     originalLower.includes("<environment_context>") ||
     originalLower.includes("</environment_context>") ||
+    originalLower.includes("<local-command-caveat>") ||
+    originalLower.includes("<command-name>") ||
+    originalLower.includes("<command-message>") ||
+    originalLower.includes("<command-args>") ||
+    originalLower.includes("<local-command-stdout>") ||
+    originalLower.includes("the user doesn't want to proceed with this tool use") ||
+    originalLower.includes("[request interrupted by user for tool use]") ||
+    originalLower.includes("do not respond to these messages") ||
     lower.startsWith("# agents.md instructions") ||
     lower.startsWith("<environment_context>") ||
     lower.startsWith("</environment_context>") ||
@@ -164,7 +185,14 @@ function isBoilerplateUserText(value) {
     lower.includes("a skill is a set of local instructions") ||
     lower.includes("### available skills") ||
     lower.includes("<instructions>") ||
-    lower.includes("</instructions>")
+    lower.includes("</instructions>") ||
+    lower.includes("<local-command-caveat>") ||
+    lower.includes("<command-name>") ||
+    lower.includes("<command-message>") ||
+    lower.includes("<command-args>") ||
+    lower.includes("<local-command-stdout>") ||
+    lower.includes("the user doesn't want to proceed with this tool use") ||
+    lower.includes("[request interrupted by user for tool use]")
   );
 }
 
@@ -203,6 +231,68 @@ function readJsonFile(filePath, fallbackValue) {
   }
 }
 
+function commandBaseName(command) {
+  return path
+    .basename(String(command || ""))
+    .replace(/\.(exe|cmd|bat|ps1)$/i, "")
+    .trim()
+    .toLowerCase();
+}
+
+function uniqueStrings(values) {
+  return [...new Set(values.filter(Boolean).map((value) => String(value).trim().toLowerCase()))];
+}
+
+function customNameKey(providerId, resumeSessionId) {
+  return `${String(providerId || "codex").trim()}:${String(resumeSessionId || "").trim()}`;
+}
+
+function normalizeCustomNameKey(key) {
+  const text = String(key || "").trim();
+  if (!text) {
+    return "";
+  }
+  return text.includes(":") ? text : customNameKey("codex", text);
+}
+
+function basenameWithoutExtension(filePath) {
+  return path.basename(filePath, path.extname(filePath));
+}
+
+function contentTextItems(content) {
+  if (typeof content === "string") {
+    return [content];
+  }
+
+  if (!Array.isArray(content)) {
+    return [];
+  }
+
+  const items = [];
+  for (const item of content) {
+    if (typeof item === "string") {
+      items.push(item);
+      continue;
+    }
+
+    if (item?.type === "input_text" && item.text) {
+      items.push(String(item.text));
+      continue;
+    }
+
+    if (item?.type === "text" && item.text) {
+      items.push(String(item.text));
+      continue;
+    }
+
+    if (item?.type === "tool_result" && item.content) {
+      items.push(...contentTextItems(item.content));
+    }
+  }
+
+  return items;
+}
+
 function userTextsFromPayload(payload) {
   if (!payload || typeof payload !== "object") {
     return [];
@@ -212,28 +302,121 @@ function userTextsFromPayload(payload) {
     return [String(payload.message)];
   }
 
-  if (payload.role === "user" && Array.isArray(payload.content)) {
-    const items = [];
-    for (const item of payload.content) {
-      if (item?.type === "input_text" && item.text) {
-        items.push(String(item.text));
-      }
-    }
-    return items;
+  if (payload.role === "user") {
+    return contentTextItems(payload.content);
+  }
+
+  if (payload.type === "user" && payload.message) {
+    return userTextsFromPayload(payload.message);
+  }
+
+  if (payload.message?.role === "user") {
+    return contentTextItems(payload.message.content);
   }
 
   return [];
+}
+
+function buildProviders(config) {
+  const codexBootstrapNames = uniqueStrings(["codex", commandBaseName(config.codexBin)]);
+  const ccBootstrapNames = uniqueStrings(["cc", "claude", commandBaseName(config.ccBin)]);
+
+  return [
+    {
+      id: "codex",
+      aliases: ["codex"],
+      label: "Codex",
+      cliLabel: "Codex CLI",
+      historyLabel: "Saved Codex sessions",
+      fallbackPrefix: "codex",
+      sessionsDir: config.codexSessionsDir,
+      bootstrapNames: codexBootstrapNames,
+      buildCommand({ resumeSessionId }) {
+        const parts = [config.codexBin];
+        if (resumeSessionId) {
+          parts.push("resume", "--all", resumeSessionId);
+        }
+        if (config.codexModel) {
+          parts.push("--model", config.codexModel);
+        }
+        if (config.codexProfile) {
+          parts.push("--profile", config.codexProfile);
+        }
+        if (config.codexNoAltScreen) {
+          parts.push("--no-alt-screen");
+        }
+        if (config.codexFullAccess) {
+          parts.push("--dangerously-bypass-approvals-and-sandbox");
+        }
+        if (config.codexExtraArgs.length > 0) {
+          parts.push(...config.codexExtraArgs);
+        }
+        return buildShellCommand(parts, config.shellQuoteStyle);
+      }
+    },
+    {
+      id: "cc",
+      aliases: ["cc", "claude"],
+      label: "Claude",
+      cliLabel: "Claude CLI",
+      historyLabel: "Saved Claude sessions",
+      fallbackPrefix: "cc",
+      sessionsDir: config.ccSessionsDir,
+      bootstrapNames: ccBootstrapNames,
+      buildCommand({ resumeSessionId, name }) {
+        const parts = [config.ccBin];
+        if (resumeSessionId) {
+          parts.push("--resume", resumeSessionId);
+        } else if (String(name || "").trim()) {
+          parts.push("--name", String(name).trim());
+        }
+        if (config.ccModel) {
+          parts.push("--model", config.ccModel);
+        }
+        if (config.ccFullAccess) {
+          parts.push("--dangerously-skip-permissions");
+        }
+        if (config.ccExtraArgs.length > 0) {
+          parts.push(...config.ccExtraArgs);
+        }
+        return buildShellCommand(parts, config.shellQuoteStyle);
+      }
+    }
+  ];
 }
 
 export class SessionManager {
   constructor(config) {
     this.config = config;
     this.sessions = new Map();
+    this.providers = new Map(buildProviders(config).map((provider) => [provider.id, provider]));
     this.customNamesPath = path.join(this.config.dataDir, "session-names.json");
     this.customNames = new Map(
-      Object.entries(readJsonFile(this.customNamesPath, {})).filter((entry) => entry[0] && entry[1])
+      Object.entries(readJsonFile(this.customNamesPath, {}))
+        .map(([key, value]) => [normalizeCustomNameKey(key), value])
+        .filter((entry) => entry[0] && entry[1])
     );
     fs.mkdirSync(this.config.dataDir, { recursive: true });
+  }
+
+  providerCatalog() {
+    return [...this.providers.values()].map((provider) => ({
+      id: provider.id,
+      label: provider.label,
+      cliLabel: provider.cliLabel,
+      historyLabel: provider.historyLabel
+    }));
+  }
+
+  getProvider(providerId = "codex") {
+    const normalizedId = String(providerId || "codex").trim().toLowerCase() || "codex";
+    const provider =
+      this.providers.get(normalizedId) ||
+      [...this.providers.values()].find((item) => Array.isArray(item.aliases) && item.aliases.includes(normalizedId));
+    if (!provider) {
+      throw new Error(`Unsupported session provider: ${providerId}`);
+    }
+    return provider;
   }
 
   list() {
@@ -249,10 +432,13 @@ export class SessionManager {
   listAll() {
     const liveSessions = this.listLiveSessions();
     const liveByResumeId = new Set(
-      liveSessions.map((session) => session.resumeSessionId).filter(Boolean)
+      liveSessions
+        .map((session) => this.resumeKey(session.provider, session.resumeSessionId))
+        .filter(Boolean)
     );
-    const historySessions = this.listHistoricalSessions()
-      .filter((session) => !liveByResumeId.has(session.resumeSessionId));
+    const historySessions = this.listHistoricalSessions().filter((session) => {
+      return !liveByResumeId.has(this.resumeKey(session.provider, session.resumeSessionId));
+    });
     return [...liveSessions, ...historySessions].sort((a, b) =>
       String(b.updatedAt).localeCompare(String(a.updatedAt))
     );
@@ -283,28 +469,28 @@ export class SessionManager {
     };
   }
 
-  create({ cwd = "", name = "", resumeSessionId = "" } = {}) {
+  create({ cwd = "", name = "", resumeSessionId = "", provider = "codex" } = {}) {
+    const resolvedProvider = this.getProvider(provider);
     const id = crypto.randomUUID();
     const resolvedCwd = this.resolveCwd(cwd);
-    const fallbackName = `codex-${this.sessions.size + 1}`;
+    const fallbackName = `${resolvedProvider.fallbackPrefix}-${this.sessions.size + 1}`;
     const sessionName = normalizeName(name, fallbackName);
-    const shell = pty.spawn(
-      this.config.shellBin,
-      this.config.shellArgs,
-      {
-        name: "xterm-color",
-        cols: 120,
-        rows: 30,
-        cwd: resolvedCwd,
-        env: {
-          ...process.env,
-          TERM: "xterm-256color"
-        }
+    const shell = pty.spawn(this.config.shellBin, this.config.shellArgs, {
+      name: "xterm-color",
+      cols: 120,
+      rows: 30,
+      cwd: resolvedCwd,
+      env: {
+        ...process.env,
+        TERM: "xterm-256color"
       }
-    );
+    });
 
     const session = {
       id,
+      provider: resolvedProvider.id,
+      providerLabel: resolvedProvider.label,
+      cliLabel: resolvedProvider.cliLabel,
       name: sessionName,
       cwd: resolvedCwd,
       shell,
@@ -317,7 +503,9 @@ export class SessionManager {
       autoNamed: !String(name || "").trim(),
       fallbackName,
       inputPreview: "",
-      sawCodexBootstrap: false,
+      sawBootstrapCommand: false,
+      bootstrapNames: resolvedProvider.bootstrapNames,
+      claudeStartupStage: 0,
       resumeSessionId: String(resumeSessionId || "").trim() || null
     };
 
@@ -328,6 +516,7 @@ export class SessionManager {
       }
       session.status = "running";
       session.updatedAt = nowIso();
+      this.maybeAutoAdvanceClaudeStartup(session);
       for (const client of session.clients) {
         client.send(JSON.stringify({ type: "data", data: chunk }));
       }
@@ -337,14 +526,14 @@ export class SessionManager {
       session.exitCode = exitCode;
       session.status = "exited";
       session.updatedAt = nowIso();
-       this.persistSessionName(session);
+      this.persistSessionName(session);
       for (const client of session.clients) {
         client.send(JSON.stringify({ type: "exit", exitCode }));
       }
     });
 
     this.sessions.set(id, session);
-    shell.write(`${this.buildCodexCommand(session.resumeSessionId)}\r`);
+    shell.write(`${this.buildProviderCommand(session)}\r`);
     return this.serialize(session);
   }
 
@@ -449,6 +638,9 @@ export class SessionManager {
   serialize(session) {
     return {
       id: session.id,
+      provider: session.provider,
+      providerLabel: session.providerLabel,
+      cliLabel: session.cliLabel,
       name: session.name,
       cwd: session.cwd,
       kind: "live",
@@ -463,7 +655,13 @@ export class SessionManager {
   }
 
   listHistoricalSessions() {
-    const files = walkJsonlFiles(this.config.codexSessionsDir);
+    return [...this.providers.values()]
+      .flatMap((provider) => this.listHistoricalSessionsForProvider(provider))
+      .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  }
+
+  listHistoricalSessionsForProvider(provider) {
+    const files = walkJsonlFiles(provider.sessionsDir);
     const byResumeId = new Map();
 
     for (const filePath of files) {
@@ -494,8 +692,11 @@ export class SessionManager {
             title = sanitizeTitleFragment(record.payload?.thread_name || title);
           }
 
-          const eventCandidates =
-            record.type === "event_msg" ? userTextsFromPayload(record.payload) : [];
+          id = String(record.sessionId || id || "");
+          cwd = String(record.cwd || cwd || this.config.defaultCwd);
+          title = sanitizeTitleFragment(record.slug || title);
+
+          const eventCandidates = record.type === "event_msg" ? userTextsFromPayload(record.payload) : [];
           const fallbackCandidates =
             record.type === "response_item"
               ? userTextsFromPayload(record.payload)
@@ -520,20 +721,27 @@ export class SessionManager {
           }
         }
 
+        id = id || basenameWithoutExtension(filePath);
         if (!id) {
           continue;
         }
 
         const effectivePreview = firstInput || fallbackInput || title;
-        const derivedName = deriveSessionTitle(effectivePreview || title, `saved-${id.slice(0, 8)}`);
+        const derivedName = deriveSessionTitle(
+          effectivePreview || title,
+          `${provider.fallbackPrefix}-${id.slice(0, 8)}`
+        );
         const fallbackSavedName = `Saved ${path.basename(cwd || this.config.defaultCwd)} ${formatShortTimestamp(
           stat.mtime,
           this.config.timezone
         )}`;
         const finalName = isLowSignalTitle(derivedName) ? fallbackSavedName : derivedName;
-        const customName = this.customNames.get(id);
+        const customName = this.getCustomName(provider.id, id);
         const session = {
-          id: `history:${id}`,
+          id: `history:${provider.id}:${id}`,
+          provider: provider.id,
+          providerLabel: provider.label,
+          cliLabel: provider.cliLabel,
           name: customName || finalName,
           cwd,
           kind: "history",
@@ -577,8 +785,9 @@ export class SessionManager {
         continue;
       }
 
-      if (!session.sawCodexBootstrap && /^codex$/i.test(candidate)) {
-        session.sawCodexBootstrap = true;
+      const lowerCandidate = candidate.toLowerCase();
+      if (!session.sawBootstrapCommand && session.bootstrapNames.includes(lowerCandidate)) {
+        session.sawBootstrapCommand = true;
         continue;
       }
 
@@ -591,26 +800,69 @@ export class SessionManager {
     }
   }
 
-  saveCustomNames() {
-    const payload = Object.fromEntries([...this.customNames.entries()].sort((left, right) => {
-      return left[0].localeCompare(right[0]);
-    }));
-    fs.writeFileSync(this.customNamesPath, JSON.stringify(payload, null, 2), "utf8");
-  }
-
-  setCustomName(resumeSessionId, name) {
-    const key = String(resumeSessionId || "").trim();
-    const value = String(name || "").trim();
-    if (!key || !value) {
+  maybeAutoAdvanceClaudeStartup(session) {
+    if (!session || session.provider !== "cc" || session.claudeStartupStage >= 2) {
       return;
     }
 
-    this.customNames.set(key, value);
-    this.saveCustomNames();
+    const text = stripTerminalControlSequences(session.buffer.slice(-6000));
+    if (session.claudeStartupStage < 1 && text.includes("Yes, I trust this folder") && text.includes("No, exit")) {
+      session.claudeStartupStage = 1;
+      session.shell.write("\r");
+      session.updatedAt = nowIso();
+      return;
+    }
+
+    if (
+      session.claudeStartupStage < 2 &&
+      text.includes("WARNING: Claude Code running in Bypass Permissions mode") &&
+      text.includes("Yes, I accept")
+    ) {
+      session.claudeStartupStage = 2;
+      session.shell.write("\u001b[B");
+      setTimeout(() => {
+        if (!this.sessions.has(session.id) || session.status === "exited") {
+          return;
+        }
+        session.shell.write("\r");
+      }, 150).unref?.();
+      session.updatedAt = nowIso();
+    }
+  }
+
+  saveCustomNames() {
+    const payload = Object.fromEntries(
+      [...this.customNames.entries()].sort((left, right) => left[0].localeCompare(right[0]))
+    );
+    fs.writeFileSync(this.customNamesPath, JSON.stringify(payload, null, 2), "utf8");
+  }
+
+  getCustomName(providerId, resumeSessionId) {
+    const key = customNameKey(providerId, resumeSessionId);
+    return this.customNames.get(key) || null;
+  }
+
+  setCustomName(providerId, resumeSessionId, name) {
+    const key = customNameKey(providerId, resumeSessionId);
+    const value = String(name || "").trim();
+    if (!key.endsWith(":") && value) {
+      this.customNames.set(key, value);
+      this.saveCustomNames();
+    }
+  }
+
+  resumeKey(providerId, resumeSessionId) {
+    const value = String(resumeSessionId || "").trim();
+    if (!value) {
+      return "";
+    }
+    return customNameKey(providerId, value);
   }
 
   findHistoricalMatch(session) {
-    const candidates = this.listHistoricalSessions().filter((item) => item.cwd === session.cwd);
+    const candidates = this.listHistoricalSessions().filter((item) => {
+      return item.provider === session.provider && item.cwd === session.cwd;
+    });
     if (!candidates.length) {
       return null;
     }
@@ -634,36 +886,21 @@ export class SessionManager {
     }
 
     if (session.resumeSessionId) {
-      this.setCustomName(session.resumeSessionId, name);
+      this.setCustomName(session.provider, session.resumeSessionId, name);
       return;
     }
 
     const historicalSession = this.findHistoricalMatch(session);
     if (historicalSession?.resumeSessionId) {
-      this.setCustomName(historicalSession.resumeSessionId, name);
+      this.setCustomName(session.provider, historicalSession.resumeSessionId, name);
     }
   }
 
-  buildCodexCommand(resumeSessionId) {
-    const parts = [this.config.codexBin];
-    if (resumeSessionId) {
-      parts.push("resume", "--all", resumeSessionId);
-    }
-    if (this.config.codexModel) {
-      parts.push("--model", this.config.codexModel);
-    }
-    if (this.config.codexProfile) {
-      parts.push("--profile", this.config.codexProfile);
-    }
-    if (this.config.codexNoAltScreen) {
-      parts.push("--no-alt-screen");
-    }
-    if (this.config.codexFullAccess) {
-      parts.push("--dangerously-bypass-approvals-and-sandbox");
-    }
-    if (this.config.codexExtraArgs.length > 0) {
-      parts.push(...this.config.codexExtraArgs);
-    }
-    return buildShellCommand(parts, this.config.shellQuoteStyle);
+  buildProviderCommand(session) {
+    const provider = this.getProvider(session.provider);
+    return provider.buildCommand({
+      resumeSessionId: session.resumeSessionId,
+      name: session.autoNamed ? "" : session.name
+    });
   }
 }

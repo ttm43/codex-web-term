@@ -47,6 +47,7 @@ body.panel-open {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -75,6 +76,7 @@ button:disabled {
 }
 
 input,
+select,
 textarea {
   width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.75);
@@ -87,6 +89,7 @@ textarea {
 }
 
 input:focus,
+select:focus,
 textarea:focus {
   border-color: rgba(59, 130, 246, 0.35);
   box-shadow:
@@ -320,6 +323,34 @@ textarea:focus {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   margin-top: 4px;
+}
+
+.session-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.session-history-toggle {
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(36, 28, 20, 0.06);
+  border: 1px solid rgba(36, 28, 20, 0.08);
+}
+
+.session-history-toggle-button {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: var(--muted);
+}
+
+.session-history-toggle-button.active {
+  background: var(--accent);
+  color: #fff9f2;
 }
 
 .session-empty {
@@ -908,7 +939,8 @@ html.touch-input-mode.terminal-layer-mode .terminal-topbar {
   font-size: 0.66rem;
 }
 
-#workspace-home input {
+#workspace-home input,
+#workspace-home select {
   padding: 7px 9px;
   border-radius: 12px;
   font-size: 0.78rem;
@@ -1573,7 +1605,8 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
     font-size: 0.68rem;
   }
 
-  #workspace-home input {
+  #workspace-home input,
+  #workspace-home select {
     padding: 7px 9px;
     border-radius: 12px;
     font-size: 0.78rem;

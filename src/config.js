@@ -97,6 +97,10 @@ export const config = {
   codexFullAccess: boolEnv("CODEX_FULL_ACCESS", true),
   codexNoAltScreen: boolEnv("CODEX_NO_ALT_SCREEN", true),
   codexExtraArgs: listEnv("CODEX_EXTRA_ARGS"),
+  ccBin: env("CC_BIN", "claude"),
+  ccModel: env("CC_MODEL", ""),
+  ccFullAccess: boolEnv("CC_FULL_ACCESS", true),
+  ccExtraArgs: listEnv("CC_EXTRA_ARGS"),
   authSessionCookieName: env("AUTH_SESSION_COOKIE_NAME", "codex_web_term_session"),
   authSessionTtlMs: intEnv("AUTH_SESSION_TTL_HOURS", 24) * 60 * 60 * 1000,
   secureCookies: boolEnv("SECURE_COOKIES", false),
@@ -109,5 +113,6 @@ export const config = {
   sessionBufferLimit: 250000,
   dataDir: path.join(root, "data"),
   codexSessionsDir: env("CODEX_SESSIONS_DIR", path.join(home, ".codex", "sessions")),
+  ccSessionsDir: env("CC_SESSIONS_DIR", path.join(home, ".claude", "projects")),
   timezone: env("DISPLAY_TIMEZONE", "Australia/Melbourne")
 };

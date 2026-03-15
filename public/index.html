@@ -76,6 +76,13 @@
                     Start from a folder, give the session a short name if needed, then open it in the CLI page.
                   </p>
                   <div class="session-rack-form">
+                    <label class="field">
+                      <span>Provider</span>
+                      <select id="session-provider">
+                        <option value="codex">Codex</option>
+                        <option value="claude">Claude</option>
+                      </select>
+                    </label>
                     <label class="field field-with-picker">
                       <span>Working directory</span>
                       <input
@@ -140,7 +147,7 @@
                   </button>
                 </div>
                 <div class="toolbar-title">
-                  <p class="section-kicker">Codex CLI</p>
+                  <p id="active-session-provider" class="section-kicker">CLI</p>
                   <div class="session-title-row">
                     <h2 id="active-session-name">No active session</h2>
                     <button id="edit-session-name" class="ghost session-title-edit" type="button" disabled>Edit</button>
@@ -176,7 +183,7 @@
                   spellcheck="false"
                   enterkeyhint="send"
                   rows="1"
-                  placeholder="Type into Codex"
+                  placeholder="Type into session"
                   aria-label="Terminal input"
                 ></textarea>
               </div>

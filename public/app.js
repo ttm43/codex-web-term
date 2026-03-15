@@ -22,6 +22,7 @@ fitAddon.fit();
 const tokenInput = document.getElementById("token");
 const cwdInput = document.getElementById("cwd");
 const nameInput = document.getElementById("session-name");
+const providerSelect = document.getElementById("session-provider");
 const connectButton = document.getElementById("connect");
 const newSessionButton = document.getElementById("new-session");
 const refreshButton = document.getElementById("refresh");
@@ -45,6 +46,7 @@ const sessionNameInlineInput = document.getElementById("session-name-inline");
 const saveSessionNameButton = document.getElementById("save-session-name");
 const cancelSessionNameButton = document.getElementById("cancel-session-name");
 const activeSessionMetaRoot = document.getElementById("active-session-meta");
+const activeSessionProviderRoot = document.getElementById("active-session-provider");
 const viewConnect = document.getElementById("view-connect");
 const viewWorkspace = document.getElementById("view-workspace");
 const workspaceHome = document.getElementById("workspace-home");
@@ -92,6 +94,12 @@ let displayTimezone = "Australia/Melbourne";
 let displayTimeFormatter = null;
 let cwdPickerRequestId = 0;
 let editingSessionName = false;
+let defaultProvider = "codex";
+let providerCatalog = [
+  { id: "codex", label: "Codex", cliLabel: "Codex CLI", historyLabel: "Saved Codex sessions" },
+  { id: "cc", label: "Claude", cliLabel: "Claude CLI", historyLabel: "Saved Claude sessions" }
+];
+let historyProviderFilter = "";
 let browserState = {
   path: "",
   parentPath: "",
@@ -121,6 +129,42 @@ function getDisplayTimeFormatter() {
   return displayTimeFormatter;
 }
 
+function getProviderInfo(providerId) {
+  return (
+    providerCatalog.find((provider) => provider.id === providerId) ||
+    providerCatalog[0] || {
+      id: providerId || "codex",
+      label: String(providerId || "codex").toUpperCase(),
+      cliLabel: "CLI",
+      historyLabel: "Saved sessions"
+    }
+  );
+}
+
+function applyProviderCatalog(nextProviders = []) {
+  const availableProviders = Array.isArray(nextProviders) && nextProviders.length ? nextProviders : providerCatalog;
+  providerCatalog = availableProviders.map((provider) => ({
+    id: provider.id,
+    label: provider.label,
+    cliLabel: provider.cliLabel,
+    historyLabel: provider.historyLabel
+  }));
+
+  const currentValue = providerSelect.value || defaultProvider;
+  providerSelect.innerHTML = "";
+  for (const provider of providerCatalog) {
+    const option = document.createElement("option");
+    option.value = provider.id;
+    option.textContent = provider.label;
+    providerSelect.appendChild(option);
+  }
+
+  const preferredValue = providerCatalog.some((provider) => provider.id === currentValue)
+    ? currentValue
+    : providerCatalog[0]?.id || "codex";
+  providerSelect.value = preferredValue;
+}
+
 function clearReconnectTimer() {
   if (reconnectTimer) {
     window.clearTimeout(reconnectTimer);
@@ -129,7 +173,45 @@ function clearReconnectTimer() {
 }
 
 function normalizeTextForTerminalPaste(value) {
-  return String(value || "").replace(/\r?\n/g, "\r");
+  return String(value || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+function getSessionInterruptConfig() {
+  if (activeSession?.provider === "cc") {
+    return {
+      label: "Interrupt",
+      composerLabel: "Stop",
+      ariaLabel: "Interrupt Claude",
+      data: "\u0003"
+    };
+  }
+
+  return {
+    label: "Esc",
+    composerLabel: "Esc",
+    ariaLabel: "Send Escape",
+    data: "\u001b"
+  };
+}
+
+function formatTextForSessionPaste(value) {
+  const normalized = normalizeTextForTerminalPaste(value);
+  if (activeSession?.provider === "cc") {
+    return `\u001b[200~${normalized}\u001b[201~`;
+  }
+  return normalized.replace(/\n/g, "\r");
+}
+
+function updateInterruptButtons() {
+  const control = getSessionInterruptConfig();
+  escKeyButton.textContent = control.label;
+  escKeyButton.setAttribute("aria-label", control.ariaLabel);
+  composerEscButton.textContent = control.composerLabel;
+  composerEscButton.setAttribute("aria-label", control.ariaLabel);
+}
+
+function sendInterruptControl() {
+  sendToSession(getSessionInterruptConfig().data);
 }
 
 function readTerminalBufferText() {
@@ -246,7 +328,7 @@ async function handleClipboardPrimaryAction() {
     return;
   }
 
-  sendToSession(normalizeTextForTerminalPaste(text));
+  sendToSession(formatTextForSessionPaste(text));
   closeClipboardSheet();
   scrollTerminalToLatest();
   setStatus("Clipboard text sent to terminal.");
@@ -511,6 +593,7 @@ function setPanelOpen(open) {
 
 function updateInputControls() {
   const enabled = hasLiveSession();
+  updateInterruptButtons();
   escKeyButton.disabled = !enabled;
   imeBridge.disabled = !enabled;
   composerEscButton.disabled = !enabled || !enableMobileComposer;
@@ -637,6 +720,7 @@ function closeSessionNameEditor() {
 }
 
 function updateWorkspaceSummary() {
+  activeSessionProviderRoot.textContent = activeSession?.cliLabel || getProviderInfo(providerSelect.value).cliLabel || "CLI";
   activeSessionNameRoot.textContent = activeSession?.name || "No active session";
   sessionNameEditorRoot.classList.toggle("hidden", !editingSessionName);
 
@@ -732,6 +816,16 @@ function buildSectionLabel(text) {
   return label;
 }
 
+function buildSectionHead(text, extraNode = null) {
+  const head = document.createElement("div");
+  head.className = "session-section-head";
+  head.appendChild(buildSectionLabel(text));
+  if (extraNode) {
+    head.appendChild(extraNode);
+  }
+  return head;
+}
+
 function buildEmptyState(title, description) {
   const empty = document.createElement("div");
   empty.className = "session-empty";
@@ -744,6 +838,55 @@ function buildEmptyState(title, description) {
   body.textContent = description;
   empty.appendChild(body);
   return empty;
+}
+
+function getHistoryProviderFilter(savedSessions) {
+  const availableProviders = providerCatalog.filter((provider) =>
+    savedSessions.some((session) => session.provider === provider.id)
+  );
+  if (!availableProviders.length) {
+    historyProviderFilter = "";
+    return "";
+  }
+
+  if (historyProviderFilter && availableProviders.some((provider) => provider.id === historyProviderFilter)) {
+    return historyProviderFilter;
+  }
+
+  if (activeSession?.provider && availableProviders.some((provider) => provider.id === activeSession.provider)) {
+    historyProviderFilter = activeSession.provider;
+    return historyProviderFilter;
+  }
+
+  historyProviderFilter = availableProviders[0].id;
+  return historyProviderFilter;
+}
+
+function buildHistoryToggle(savedSessions) {
+  const availableProviders = providerCatalog.filter((provider) =>
+    savedSessions.some((session) => session.provider === provider.id)
+  );
+  if (availableProviders.length <= 1) {
+    return null;
+  }
+
+  const currentFilter = getHistoryProviderFilter(savedSessions);
+  const toggle = document.createElement("div");
+  toggle.className = "session-history-toggle";
+
+  for (const provider of availableProviders) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `ghost session-history-toggle-button${provider.id === currentFilter ? " active" : ""}`;
+    button.textContent = provider.label;
+    button.addEventListener("click", () => {
+      historyProviderFilter = provider.id;
+      renderSessions();
+    });
+    toggle.appendChild(button);
+  }
+
+  return toggle;
 }
 
 function renderSessions() {
@@ -773,8 +916,20 @@ function renderSessions() {
   }
 
   if (savedSessions.length) {
-    sessionsRoot.appendChild(buildSectionLabel("Saved Codex sessions"));
-    for (const session of savedSessions) {
+    const currentFilter = getHistoryProviderFilter(savedSessions);
+    const toggle = buildHistoryToggle(savedSessions);
+    const provider = getProviderInfo(currentFilter);
+    const filteredHistory = savedSessions.filter((session) => session.provider === currentFilter);
+
+    sessionsRoot.appendChild(buildSectionHead("History", toggle));
+    if (!filteredHistory.length) {
+      sessionsRoot.appendChild(
+        buildEmptyState(`No saved ${provider.label} sessions`, "Switch providers or create a new session.")
+      );
+      return;
+    }
+
+    for (const session of filteredHistory) {
       sessionsRoot.appendChild(buildSessionCard(session));
     }
   }
@@ -801,6 +956,7 @@ function buildSessionCard(session) {
 
   const badgeRow = document.createElement("div");
   badgeRow.className = "session-badge-row";
+  badgeRow.appendChild(buildBadge(session.providerLabel || getProviderInfo(session.provider).label, "ghost-badge"));
   if (isCurrent) {
     badgeRow.appendChild(buildBadge("Current"));
   }
@@ -818,6 +974,7 @@ function buildSessionCard(session) {
   const metaGrid = document.createElement("div");
   metaGrid.className = "session-meta-grid";
   metaGrid.appendChild(buildSessionMeta("Status", session.status));
+  metaGrid.appendChild(buildSessionMeta("Provider", session.providerLabel || getProviderInfo(session.provider).label));
   metaGrid.appendChild(buildSessionMeta("Folder", session.cwd));
   metaGrid.appendChild(buildSessionMeta("Updated", formatTime(session.updatedAt)));
   card.appendChild(metaGrid);
@@ -837,7 +994,11 @@ function buildSessionMeta(label, value) {
 
   const body = document.createElement("span");
   body.className = "session-meta-value";
+  /*
   body.textContent = value || "—";
+  item.appendChild(body);
+  */
+  body.textContent = value || "--";
   item.appendChild(body);
 
   return item;
@@ -849,6 +1010,7 @@ async function activateSessionFromList(session) {
       const payload = await request("/api/sessions", {
         method: "POST",
         body: JSON.stringify({
+          provider: session.provider,
           cwd: session.cwd,
           name: session.name,
           resumeSessionId: session.resumeSessionId
@@ -1314,7 +1476,12 @@ connectButton.addEventListener("click", async () => {
     defaultCwd = payload.defaultCwd || "";
     displayTimezone = payload.timezone || displayTimezone;
     displayTimeFormatter = null;
+    defaultProvider = payload.defaultProvider || defaultProvider;
+    applyProviderCatalog(payload.providers || []);
     cwdInput.value = cwdInput.value.trim() || payload.defaultCwd || "";
+    providerSelect.value = providerCatalog.some((provider) => provider.id === defaultProvider)
+      ? defaultProvider
+      : providerCatalog[0]?.id || "codex";
     newSessionButton.disabled = false;
     refreshButton.disabled = false;
     setView("workspace");
@@ -1334,6 +1501,7 @@ newSessionButton.addEventListener("click", async () => {
     const payload = await request("/api/sessions", {
       method: "POST",
       body: JSON.stringify({
+        provider: providerSelect.value || defaultProvider,
         cwd: cwdInput.value.trim(),
         name: nameInput.value.trim()
       })
@@ -1508,6 +1676,12 @@ sessionNameInlineInput.addEventListener("keydown", async (event) => {
   await renameActiveSession();
 });
 
+providerSelect.addEventListener("change", () => {
+  if (!activeSession) {
+    updateWorkspaceSummary();
+  }
+});
+
 document.addEventListener("pointerdown", (event) => {
   if (event.target === cwdInput || cwdPickerRoot.contains(event.target)) {
     return;
@@ -1644,7 +1818,7 @@ imeBridge.addEventListener("keydown", (event) => {
 });
 
 composerEscButton.addEventListener("click", () => {
-  sendToSession("\u001b");
+  sendInterruptControl();
   focusImeBridge();
 });
 
@@ -1653,7 +1827,7 @@ composerSendButton.addEventListener("click", () => {
 });
 
 escKeyButton.addEventListener("click", () => {
-  sendToSession("\u001b");
+  sendInterruptControl();
   if (useImeBridge && keyboardWasOpen) {
     focusImeBridge();
     return;
@@ -1662,6 +1836,7 @@ escKeyButton.addEventListener("click", () => {
   term.focus();
 });
 
+applyProviderCatalog(providerCatalog);
 updateInputControls();
 updateWorkspaceSummary();
 setView("connect");
