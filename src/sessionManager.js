@@ -4,23 +4,60 @@ import path from "node:path";
 
 import pty from "node-pty";
 
-const melbourneNameFormatter = new Intl.DateTimeFormat("en-AU", {
-  timeZone: "Australia/Melbourne",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false
-});
+const shortTimeFormatterCache = new Map();
 
 function nowIso() {
   return new Date().toISOString();
 }
 
-function formatMelbourneShort(value) {
-  const parts = melbourneNameFormatter.formatToParts(new Date(value));
+function getShortTimeFormatter(timezone) {
+  const key = String(timezone || "UTC");
+  if (!shortTimeFormatterCache.has(key)) {
+    shortTimeFormatterCache.set(
+      key,
+      new Intl.DateTimeFormat("en-AU", {
+        timeZone: key,
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZoneName: "short"
+      })
+    );
+  }
+  return shortTimeFormatterCache.get(key);
+}
+
+function formatShortTimestamp(value, timezone) {
+  const parts = getShortTimeFormatter(timezone).formatToParts(new Date(value));
   const get = (type) => parts.find((part) => part.type === type)?.value || "00";
-  return `${get("month")}-${get("day")} ${get("hour")}:${get("minute")} AEDT`;
+  return `${get("month")}-${get("day")} ${get("hour")}:${get("minute")} ${get("timeZoneName")}`;
+}
+
+function quotePosix(value) {
+  return `'${String(value || "").replace(/'/g, "'\\''")}'`;
+}
+
+function quotePowerShell(value) {
+  return `'${String(value || "").replace(/'/g, "''")}'`;
+}
+
+function buildShellCommand(parts, quoteStyle) {
+  const values = parts.filter((part) => String(part || "").length > 0);
+  if (values.length === 0) {
+    return "";
+  }
+
+  if (quoteStyle === "powershell") {
+    const [command, ...args] = values;
+    const quotedArgs = args.map((arg) => quotePowerShell(arg)).join(" ");
+    return quotedArgs
+      ? `& ${quotePowerShell(command)} ${quotedArgs}`
+      : `& ${quotePowerShell(command)}`;
+  }
+
+  return values.map((part) => quotePosix(part)).join(" ");
 }
 
 function normalizeName(value, fallback) {
@@ -158,6 +195,14 @@ function readSessionPreview(filePath) {
   return fs.readFileSync(filePath, "utf8");
 }
 
+function readJsonFile(filePath, fallbackValue) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    return fallbackValue;
+  }
+}
+
 function userTextsFromPayload(payload) {
   if (!payload || typeof payload !== "object") {
     return [];
@@ -184,6 +229,10 @@ export class SessionManager {
   constructor(config) {
     this.config = config;
     this.sessions = new Map();
+    this.customNamesPath = path.join(this.config.dataDir, "session-names.json");
+    this.customNames = new Map(
+      Object.entries(readJsonFile(this.customNamesPath, {})).filter((entry) => entry[0] && entry[1])
+    );
     fs.mkdirSync(this.config.dataDir, { recursive: true });
   }
 
@@ -240,8 +289,8 @@ export class SessionManager {
     const fallbackName = `codex-${this.sessions.size + 1}`;
     const sessionName = normalizeName(name, fallbackName);
     const shell = pty.spawn(
-      this.config.powershellBin,
-      ["-NoLogo"],
+      this.config.shellBin,
+      this.config.shellArgs,
       {
         name: "xterm-color",
         cols: 120,
@@ -288,6 +337,7 @@ export class SessionManager {
       session.exitCode = exitCode;
       session.status = "exited";
       session.updatedAt = nowIso();
+       this.persistSessionName(session);
       for (const client of session.clients) {
         client.send(JSON.stringify({ type: "exit", exitCode }));
       }
@@ -349,6 +399,7 @@ export class SessionManager {
     session.name = normalizeName(name, session.fallbackName || session.name);
     session.autoNamed = false;
     session.updatedAt = nowIso();
+    this.persistSessionName(session);
     return this.serialize(session);
   }
 
@@ -475,13 +526,15 @@ export class SessionManager {
 
         const effectivePreview = firstInput || fallbackInput || title;
         const derivedName = deriveSessionTitle(effectivePreview || title, `saved-${id.slice(0, 8)}`);
-        const fallbackSavedName = `Saved ${path.basename(cwd || this.config.defaultCwd)} ${formatMelbourneShort(
-          stat.mtime
+        const fallbackSavedName = `Saved ${path.basename(cwd || this.config.defaultCwd)} ${formatShortTimestamp(
+          stat.mtime,
+          this.config.timezone
         )}`;
         const finalName = isLowSignalTitle(derivedName) ? fallbackSavedName : derivedName;
+        const customName = this.customNames.get(id);
         const session = {
           id: `history:${id}`,
-          name: finalName,
+          name: customName || finalName,
           cwd,
           kind: "history",
           status: "saved",
@@ -533,7 +586,61 @@ export class SessionManager {
       session.name = deriveSessionTitle(candidate, session.fallbackName);
       session.autoNamed = false;
       session.updatedAt = nowIso();
+      this.persistSessionName(session);
       return;
+    }
+  }
+
+  saveCustomNames() {
+    const payload = Object.fromEntries([...this.customNames.entries()].sort((left, right) => {
+      return left[0].localeCompare(right[0]);
+    }));
+    fs.writeFileSync(this.customNamesPath, JSON.stringify(payload, null, 2), "utf8");
+  }
+
+  setCustomName(resumeSessionId, name) {
+    const key = String(resumeSessionId || "").trim();
+    const value = String(name || "").trim();
+    if (!key || !value) {
+      return;
+    }
+
+    this.customNames.set(key, value);
+    this.saveCustomNames();
+  }
+
+  findHistoricalMatch(session) {
+    const candidates = this.listHistoricalSessions().filter((item) => item.cwd === session.cwd);
+    if (!candidates.length) {
+      return null;
+    }
+
+    const preview = String(session.inputPreview || "").trim().toLowerCase();
+    const withSamePreview = preview
+      ? candidates.filter((item) => String(item.inputPreview || "").trim().toLowerCase() === preview)
+      : [];
+    const pool = withSamePreview.length ? withSamePreview : candidates;
+    return [...pool].sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt)))[0] || null;
+  }
+
+  persistSessionName(session) {
+    if (!session || session.autoNamed) {
+      return;
+    }
+
+    const name = String(session.name || "").trim();
+    if (!name) {
+      return;
+    }
+
+    if (session.resumeSessionId) {
+      this.setCustomName(session.resumeSessionId, name);
+      return;
+    }
+
+    const historicalSession = this.findHistoricalMatch(session);
+    if (historicalSession?.resumeSessionId) {
+      this.setCustomName(historicalSession.resumeSessionId, name);
     }
   }
 
@@ -557,6 +664,6 @@ export class SessionManager {
     if (this.config.codexExtraArgs.length > 0) {
       parts.push(...this.config.codexExtraArgs);
     }
-    return parts.join(" ");
+    return buildShellCommand(parts, this.config.shellQuoteStyle);
   }
 }

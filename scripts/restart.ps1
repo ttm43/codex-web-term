@@ -6,12 +6,8 @@ param(
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
-New-Item -ItemType Directory -Force -Path ".\\logs" | Out-Null
-
-if ($Mode -eq "dev") {
-  npm run pm2:dev
-} else {
-  npm run pm2:prod
+$script = Join-Path $PSScriptRoot "service.mjs"
+& node $script restart --mode $Mode
+if ($LASTEXITCODE -ne 0) {
+  throw "service.mjs failed with exit code $LASTEXITCODE"
 }
-
-npm run pm2:status

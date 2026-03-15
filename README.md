@@ -1,10 +1,10 @@
 # Codex Web Term
 
-Browser-based multi-session terminal for running native `codex` on your Windows machine.
+Browser-based multi-session terminal for running native `codex` on your Windows or macOS machine.
 
 ## What It Does
 
-- Opens real PowerShell PTY sessions on your Windows host
+- Opens real PTY shell sessions on the host machine
 - Auto-starts native `codex` in each new or resumed session
 - Starts `codex` in full-access mode by default
 - Streams terminal output live to a browser
@@ -16,7 +16,7 @@ Browser-based multi-session terminal for running native `codex` on your Windows 
 - Uses a short-lived HttpOnly session cookie after token login
 - Supports optional login rate limiting and network allowlists
 - Supports managed restarts with `pm2`
-- Supports Windows logon auto-restore through Task Scheduler
+- Supports optional auto-restore after login
 - Works from:
   - your PC at `http://localhost:3210`
   - your phone on the same LAN
@@ -24,8 +24,12 @@ Browser-based multi-session terminal for running native `codex` on your Windows 
 
 ## Prerequisites
 
-- Install native `codex` on the Windows host.
-- If you want phone access over Tailscale, install Tailscale first and sign in on both the Windows host and the phone.
+- Install native `codex` on the host machine.
+- Install Node.js 22 or newer.
+- If you want phone access over Tailscale, install Tailscale first and sign in on both the host and the phone.
+- Platform shell defaults:
+  - Windows: Windows PowerShell is used by default.
+  - macOS: your login shell from `$SHELL` is used by default, usually `/bin/zsh`.
 - Decide whether you want:
   - local + LAN access
   - local + Tailscale-only access with `TAILSCALE_ONLY=true`
@@ -34,25 +38,26 @@ Browser-based multi-session terminal for running native `codex` on your Windows 
 
 1. Copy `.env.example` to `.env`
 2. Set a strong `ACCESS_TOKEN`
-3. If you want Tailscale phone access, make sure Tailscale is already installed, connected, and has assigned an IP on the host.
-4. Optional: tighten access with `TAILSCALE_ONLY=true` or `TRUSTED_CIDRS`
-5. Optional: tune session TTL / rate limits / heartbeat timings
-6. Install dependencies:
+3. Optional: set `SHELL_BIN` / `SHELL_ARGS` if you want a non-default shell.
+4. If you want Tailscale phone access, make sure Tailscale is already installed, connected, and has assigned an IP on the host.
+5. Optional: tighten access with `TAILSCALE_ONLY=true` or `TRUSTED_CIDRS`
+6. Optional: tune session TTL / rate limits / heartbeat timings
+7. Install dependencies:
 
-```powershell
+```bash
 npm install
 ```
 
-7. Start the server directly:
+8. Start the server directly:
 
-```powershell
+```bash
 npm start
 ```
 
-8. Or run it under `pm2`:
+9. Or run it under `pm2` with the shared service entrypoint:
 
-```powershell
-npm run prod
+```bash
+npm run service:start
 ```
 
 ## Access
@@ -69,72 +74,74 @@ The token is exchanged for an HttpOnly session cookie; subsequent API and WebSoc
 
 - Unified service entrypoint:
 
-```powershell
-.\scripts\service.ps1 -Action status
-.\\scripts\\service.ps1 -Action start -Mode prod
-.\scripts\service.ps1 -Action restart -Mode prod
-.\scripts\service.ps1 -Action stop
-.\scripts\service.ps1 -Action logs
+```bash
+npm run service:start
+npm run service:restart
+npm run service:stop
+npm run service:status
+npm run service:list
+npm run service:logs
+```
+
+- Development watch mode:
+
+```bash
+npm run service:start:dev
 ```
 
 - `stop` only stops the service. It does not restart it.
 - `restart` waits for `/api/health` before returning.
-- Use `service.ps1` as the main operator entrypoint. The older `start.ps1`, `stop.ps1`, `restart.ps1`, `status.ps1`, and `logs.ps1` scripts still exist, but `service.ps1` is the preferred wrapper.
+- `list` shows the managed `codex-web-term` PM2 apps without the extra health output from `status`.
+- `scripts/service.mjs` is the shared implementation used by both Windows and macOS.
+- On Windows, `service.ps1`, `start.ps1`, `stop.ps1`, `restart.ps1`, `status.ps1`, and `logs.ps1` still exist as thin wrappers if you prefer PowerShell.
 
-- Development watch mode:
+- Windows PowerShell wrappers:
+
+```powershell
+.\scripts\service.ps1 -Action status
+.\scripts\service.ps1 -Action start -Mode prod
+.\scripts\service.ps1 -Action restart -Mode prod
+.\scripts\service.ps1 -Action stop
+.\\scripts\\service.ps1 -Action list
+.\scripts\service.ps1 -Action logs
+```
 
 ```powershell
 .\scripts\start.ps1 -Mode dev
 ```
 
-- Production-style managed mode:
-
-```powershell
-.\scripts\start.ps1 -Mode prod
-```
-
-- Restart:
-
-```powershell
-.\scripts\restart.ps1 -Mode prod
-```
-
-- Status:
-
-```powershell
-.\scripts\status.ps1
-```
-
-- Logs:
-
-```powershell
-.\scripts\logs.ps1
-```
-
-## Windows Auto Start
+## Auto Start
 
 - The production process is managed by `pm2`.
 - PM2 state is persisted with `pm2 save`.
-- Windows logon recovery is handled by the scheduled task:
-  - `Codex Web Term PM2 Startup`
-- That task runs:
-  - `.\scripts\pm2-resurrect.ps1`
-- Current behavior:
-  - after Windows logon, the task restores PM2
-  - if `codex-web-term` is missing, it starts it again
-  - this is logon-time recovery, not a pre-login Windows service
+- Shared restore command:
+
+```bash
+npm run service:resurrect
+```
+
+- Windows:
+  - keep using Task Scheduler if you want login-time recovery
+  - the scheduled task can run `.\scripts\pm2-resurrect.ps1`
+- macOS:
+  - use `launchd`
+  - inspect the rendered plist with `npm run launchd:render`
+  - install the agent with `npm run launchd:install`
+  - verify it with `npm run launchd:list`
+  - remove it with `npm run launchd:uninstall`
+  - the installer renders `scripts/launchd/com.codex-web-term.plist.template` into `~/Library/LaunchAgents/com.codex-web-term.plist` using the current Node executable and repo path
 
 ## Session Behavior
 
-- New browser sessions start a real `PowerShell` PTY and launch `codex`.
+- New browser sessions start a real PTY and launch `codex`.
 - The New Session page exposes a path dropdown under `Working directory` so you can pick folders without typing the full path.
 - Saved native Codex sessions from `~/.codex/sessions` are listed in the Sessions panel.
 - Reopening a saved session starts a new live PTY that resumes that Codex session.
 - Browser session names are auto-titled from the first meaningful input when possible.
 - Live session titles can also be edited manually from the CLI header.
-- Historical session timestamps are displayed in `Australia/Melbourne`.
+- Historical session timestamps are displayed in `DISPLAY_TIMEZONE`.
 
-## Windows Network Notes
+## Network Notes
 
 - If you want phone access on the same Wi-Fi or over Tailscale, keep `HOST=0.0.0.0`.
 - If Windows Firewall prompts for Node.js access, allow it on the network type you plan to use.
@@ -145,9 +152,10 @@ The token is exchanged for an HttpOnly session cookie; subsequent API and WebSoc
 ## Notes
 
 - Sessions are in-memory in this first version.
-- Each new session launches `PowerShell` and immediately runs `codex`.
+- Each new session launches the configured shell and immediately runs `codex`.
 - Resumed sessions launch `codex resume --all <session-id>`.
 - Default launch flags are controlled by `.env`:
+  - `SHELL_BIN` and `SHELL_ARGS` let you override the host shell
   - `CODEX_FULL_ACCESS=true`
   - `CODEX_NO_ALT_SCREEN=true`
   - `DISPLAY_TIMEZONE=Australia/Melbourne`

@@ -88,6 +88,8 @@ let clipboardMode = "";
 let latestStatus = "Disconnected";
 let mobileComposerValue = "";
 let defaultCwd = "";
+let displayTimezone = "Australia/Melbourne";
+let displayTimeFormatter = null;
 let cwdPickerRequestId = 0;
 let editingSessionName = false;
 let browserState = {
@@ -102,15 +104,22 @@ const useImeBridge = window.matchMedia("(pointer: coarse)").matches || navigator
 const enableMobileComposer = false;
 document.documentElement.classList.toggle("touch-input-mode", useImeBridge);
 document.documentElement.classList.toggle("mobile-composer-disabled", !enableMobileComposer);
-const melbourneFormatter = new Intl.DateTimeFormat("en-AU", {
-  timeZone: "Australia/Melbourne",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false
-});
+
+function getDisplayTimeFormatter() {
+  if (!displayTimeFormatter) {
+    displayTimeFormatter = new Intl.DateTimeFormat("en-AU", {
+      timeZone: displayTimezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZoneName: "short"
+    });
+  }
+  return displayTimeFormatter;
+}
 
 function clearReconnectTimer() {
   if (reconnectTimer) {
@@ -537,7 +546,7 @@ function headers() {
 
 function formatTime(value) {
   try {
-    return `${melbourneFormatter.format(new Date(value))} AEDT`;
+    return getDisplayTimeFormatter().format(new Date(value));
   } catch {
     return value || "";
   }
@@ -1303,6 +1312,8 @@ connectButton.addEventListener("click", async () => {
     accessToken = "";
     tokenInput.value = "";
     defaultCwd = payload.defaultCwd || "";
+    displayTimezone = payload.timezone || displayTimezone;
+    displayTimeFormatter = null;
     cwdInput.value = cwdInput.value.trim() || payload.defaultCwd || "";
     newSessionButton.disabled = false;
     refreshButton.disabled = false;

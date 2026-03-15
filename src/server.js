@@ -553,7 +553,8 @@ const server = http.createServer(async (req, res) => {
     json(res, 200, {
       host: config.host,
       port: config.port,
-      defaultCwd: config.defaultCwd
+      defaultCwd: config.defaultCwd,
+      timezone: config.timezone
     });
     return;
   }

@@ -1,4 +1,8 @@
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
-npm run pm2:logs
+$script = Join-Path $PSScriptRoot "service.mjs"
+& node $script logs
+if ($LASTEXITCODE -ne 0) {
+  throw "service.mjs failed with exit code $LASTEXITCODE"
+}
