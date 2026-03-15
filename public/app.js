@@ -25,7 +25,6 @@ const nameInput = document.getElementById("session-name");
 const providerSelect = document.getElementById("session-provider");
 const connectButton = document.getElementById("connect");
 const newSessionButton = document.getElementById("new-session");
-const refreshButton = document.getElementById("refresh");
 const closeSessionButton = document.getElementById("close-session");
 const cwdPickerRoot = document.getElementById("cwd-picker");
 const cwdPickerMetaRoot = document.getElementById("cwd-picker-meta");
@@ -33,9 +32,6 @@ const cwdPickerListRoot = document.getElementById("cwd-picker-list");
 const browseUpButton = document.getElementById("browse-up");
 const syncBrowserPathButton = document.getElementById("sync-browser-path");
 const sessionsRoot = document.getElementById("sessions");
-const sessionLiveCountRoot = document.getElementById("session-live-count");
-const sessionSavedCountRoot = document.getElementById("session-saved-count");
-const sessionTotalCountRoot = document.getElementById("session-total-count");
 const sessionHistoryToolbarRoot = document.getElementById("session-history-toolbar");
 const homeStatusRoot = document.getElementById("home-status");
 const browserCurrentRoot = document.getElementById("browser-current");
@@ -81,6 +77,7 @@ let socket = null;
 let sessions = [];
 let reconnectTimer = null;
 let isManualDisconnect = false;
+const ignoredSocketEvents = new WeakSet();
 let isAuthenticated = false;
 let pendingOutput = "";
 let outputFrame = null;
@@ -93,6 +90,7 @@ let mobileComposerValue = "";
 let defaultCwd = "";
 let displayTimezone = "Australia/Melbourne";
 let displayTimeFormatter = null;
+let displayCardTimeFormatter = null;
 let cwdPickerRequestId = 0;
 let editingSessionName = false;
 let defaultProvider = "codex";
@@ -128,6 +126,20 @@ function getDisplayTimeFormatter() {
     });
   }
   return displayTimeFormatter;
+}
+
+function getDisplayCardTimeFormatter() {
+  if (!displayCardTimeFormatter) {
+    displayCardTimeFormatter = new Intl.DateTimeFormat("en-AU", {
+      timeZone: displayTimezone,
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    });
+  }
+  return displayCardTimeFormatter;
 }
 
 function getProviderInfo(providerId) {
@@ -636,6 +648,14 @@ function formatTime(value) {
   }
 }
 
+function formatCardTime(value) {
+  try {
+    return getDisplayCardTimeFormatter().format(new Date(value));
+  } catch {
+    return value || "";
+  }
+}
+
 function humanFileSize(bytes) {
   if (!Number.isFinite(bytes) || bytes < 0) {
     return "";
@@ -841,6 +861,13 @@ function buildEmptyState(title, description) {
   return empty;
 }
 
+function buildBadge(text, extraClass = "") {
+  const badge = document.createElement("span");
+  badge.className = `session-badge${extraClass ? ` ${extraClass}` : ""}`;
+  badge.textContent = text;
+  return badge;
+}
+
 function getHistoryProviderFilter(savedSessions) {
   const availableProviders = providerCatalog.filter((provider) =>
     savedSessions.some((session) => session.provider === provider.id)
@@ -899,10 +926,6 @@ function renderSessions() {
   const liveSessions = sessions.filter((session) => session.kind === "live");
   const savedSessions = sessions.filter((session) => session.kind === "history");
 
-  sessionLiveCountRoot.textContent = String(liveSessions.length);
-  sessionSavedCountRoot.textContent = String(savedSessions.length);
-  sessionTotalCountRoot.textContent = String(sessions.length);
-
   if (!sessions.length) {
     sessionsRoot.appendChild(
       buildEmptyState(
@@ -914,7 +937,7 @@ function renderSessions() {
   }
 
   if (liveSessions.length) {
-    sessionsRoot.appendChild(buildSectionLabel("Live in browser"));
+    sessionsRoot.appendChild(buildSectionLabel("Live"));
     for (const session of liveSessions) {
       sessionsRoot.appendChild(buildSessionCard(session));
     }
@@ -925,13 +948,7 @@ function renderSessions() {
     const toggle = buildHistoryToggle(savedSessions);
     const provider = getProviderInfo(currentFilter);
     const filteredHistory = savedSessions.filter((session) => session.provider === currentFilter);
-
-    if (toggle && sessionHistoryToolbarRoot) {
-      sessionHistoryToolbarRoot.appendChild(toggle);
-      sessionHistoryToolbarRoot.classList.remove("hidden");
-    }
-
-    sessionsRoot.appendChild(buildSectionHead("History"));
+    sessionsRoot.appendChild(buildSectionHead("History", toggle));
     if (!filteredHistory.length) {
       sessionsRoot.appendChild(
         buildEmptyState(`No saved ${provider.label} sessions`, "Switch providers or create a new session.")
@@ -945,11 +962,16 @@ function renderSessions() {
   }
 }
 
-function buildBadge(text, extraClass = "") {
-  const badge = document.createElement("span");
-  badge.className = `session-badge${extraClass ? ` ${extraClass}` : ""}`;
-  badge.textContent = text;
-  return badge;
+function buildCompactSessionMeta(text, extraClass = "") {
+  const item = document.createElement("p");
+  item.className = `session-meta-line compact${extraClass ? ` ${extraClass}` : ""}`;
+
+  const body = document.createElement("span");
+  body.className = "session-meta-value";
+  body.textContent = text || "--";
+  item.appendChild(body);
+
+  return item;
 }
 
 function buildSessionCard(session) {
@@ -976,17 +998,28 @@ function buildSessionCard(session) {
   head.appendChild(badgeRow);
   card.appendChild(head);
 
-  const preview = document.createElement("p");
-  preview.className = `session-preview${session.inputPreview ? "" : " muted"}`;
-  preview.textContent = session.inputPreview || "No prompt preview available";
-  card.appendChild(preview);
+  if (session.inputPreview) {
+    const preview = document.createElement("p");
+    preview.className = "session-preview";
+    preview.textContent = session.inputPreview;
+    card.appendChild(preview);
+  }
 
   const metaGrid = document.createElement("div");
   metaGrid.className = "session-meta-grid";
-  metaGrid.appendChild(buildSessionMeta("Status", session.status));
-  metaGrid.appendChild(buildSessionMeta("Provider", session.providerLabel || getProviderInfo(session.provider).label));
-  metaGrid.appendChild(buildSessionMeta("Folder", session.cwd));
-  metaGrid.appendChild(buildSessionMeta("Updated", formatTime(session.updatedAt)));
+  const summaryParts = [];
+  if (session.status) {
+    summaryParts.push(session.status);
+  }
+  if (session.updatedAt) {
+    summaryParts.push(formatCardTime(session.updatedAt));
+  }
+  if (summaryParts.length) {
+    metaGrid.appendChild(buildCompactSessionMeta(summaryParts.join(" · ")));
+  }
+  if (session.cwd) {
+    metaGrid.appendChild(buildCompactSessionMeta(session.cwd, "session-meta-path"));
+  }
   card.appendChild(metaGrid);
 
   card.addEventListener("click", () => activateSessionFromList(session));
@@ -1070,27 +1103,35 @@ function disconnectSocket() {
   if (socket) {
     const currentSocket = socket;
     socket = null;
+    ignoredSocketEvents.add(currentSocket);
     currentSocket.close();
   }
   updateInputControls();
 }
 
-function scheduleReconnect() {
-  if (!activeSessionId || !isAuthenticated || document.hidden || reconnectTimer || hasLiveSession()) {
+function scheduleReconnect(sessionId = activeSessionId) {
+  const targetSessionId = String(sessionId || "").trim();
+  if (!targetSessionId || !isAuthenticated || document.hidden || reconnectTimer || hasLiveSession()) {
     return;
   }
 
   reconnectTimer = window.setTimeout(async () => {
     reconnectTimer = null;
-    if (!activeSessionId || !isAuthenticated || document.hidden || hasLiveSession()) {
+    if (
+      !targetSessionId ||
+      !isAuthenticated ||
+      document.hidden ||
+      hasLiveSession() ||
+      activeSessionId !== targetSessionId
+    ) {
       return;
     }
 
     try {
-      await connectToSession(activeSessionId, { resetTerminal: true, allowReconnect: true });
+      await connectToSession(targetSessionId, { resetTerminal: true, allowReconnect: true });
     } catch (err) {
       setStatus(err.message || String(err));
-      scheduleReconnect();
+      scheduleReconnect(targetSessionId);
     }
   }, 600);
 }
@@ -1100,6 +1141,7 @@ async function connectToSession(sessionId, { resetTerminal = true, allowReconnec
   if (socket) {
     const currentSocket = socket;
     socket = null;
+    ignoredSocketEvents.add(currentSocket);
     currentSocket.close();
   }
 
@@ -1142,6 +1184,7 @@ async function connectToSession(sessionId, { resetTerminal = true, allowReconnec
       activeSession = payload.session || activeSession;
       updateWorkspaceSummary();
       queueTerminalOutput(payload.buffer || "");
+      scrollTerminalToLatest();
       setStatus(payload.session.status || "running");
       return;
     }
@@ -1160,19 +1203,25 @@ async function connectToSession(sessionId, { resetTerminal = true, allowReconnec
   });
 
   ws.addEventListener("close", () => {
+    if (ignoredSocketEvents.has(ws)) {
+      return;
+    }
     if (socket === ws) {
       socket = null;
     }
     setStatus("disconnected");
     updateInputControls();
     if (!isManualDisconnect && allowReconnect) {
-      scheduleReconnect();
+      scheduleReconnect(sessionId);
     }
   });
 
   ws.addEventListener("error", () => {
+    if (ignoredSocketEvents.has(ws)) {
+      return;
+    }
     if (!isManualDisconnect && allowReconnect) {
-      scheduleReconnect();
+      scheduleReconnect(sessionId);
     }
   });
 }
@@ -1486,6 +1535,7 @@ connectButton.addEventListener("click", async () => {
     defaultCwd = payload.defaultCwd || "";
     displayTimezone = payload.timezone || displayTimezone;
     displayTimeFormatter = null;
+    displayCardTimeFormatter = null;
     defaultProvider = payload.defaultProvider || defaultProvider;
     applyProviderCatalog(payload.providers || []);
     cwdInput.value = cwdInput.value.trim() || payload.defaultCwd || "";
@@ -1493,7 +1543,6 @@ connectButton.addEventListener("click", async () => {
       ? defaultProvider
       : providerCatalog[0]?.id || "codex";
     newSessionButton.disabled = false;
-    refreshButton.disabled = false;
     setView("workspace");
     setWorkspaceScreen("home");
     setPanelOpen(false);
@@ -1519,15 +1568,6 @@ newSessionButton.addEventListener("click", async () => {
     await refreshSessions();
     await openSession(payload.session.id);
     nameInput.value = "";
-  } catch (err) {
-    setStatus(err.message || String(err));
-  }
-});
-
-refreshButton.addEventListener("click", async () => {
-  try {
-    await refreshSessions();
-    await loadDirectory(browserState.path || cwdInput.value.trim());
   } catch (err) {
     setStatus(err.message || String(err));
   }

@@ -313,8 +313,8 @@ textarea:focus {
 .sessions {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 14px;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .session-section-label {
@@ -334,18 +334,19 @@ textarea:focus {
 
 .session-history-toggle {
   display: inline-flex;
-  gap: 6px;
-  padding: 4px;
+  gap: 3px;
+  padding: 2px;
   border-radius: 999px;
   background: rgba(36, 28, 20, 0.06);
   border: 1px solid rgba(36, 28, 20, 0.08);
 }
 
 .session-history-toggle-button {
-  min-height: 30px;
-  padding: 0 12px;
+  min-height: 26px;
+  padding: 0 10px;
   border-radius: 999px;
   color: var(--muted);
+  font-size: 0.7rem;
 }
 
 .session-history-toggle-button.active {
@@ -372,13 +373,13 @@ textarea:focus {
 
 .session-card {
   width: 100%;
-  padding: 14px;
+  padding: 10px 11px;
   text-align: left;
   border: 1px solid rgba(36, 28, 20, 0.08);
-  border-radius: 22px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.84);
   color: var(--text);
-  box-shadow: 0 8px 18px rgba(84, 55, 28, 0.05);
+  box-shadow: 0 6px 14px rgba(84, 55, 28, 0.04);
   transition:
     transform 140ms ease,
     box-shadow 140ms ease,
@@ -387,7 +388,7 @@ textarea:focus {
 
 .session-card:hover {
   transform: translateY(-1px);
-  box-shadow: 0 14px 30px rgba(84, 55, 28, 0.08);
+  box-shadow: 0 10px 22px rgba(84, 55, 28, 0.07);
 }
 
 .session-card.active {
@@ -402,12 +403,12 @@ textarea:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
 }
 
 .session-card h3 {
-  margin: 0 0 6px;
-  font-size: 0.98rem;
+  margin: 0;
+  font-size: 0.92rem;
 }
 
 .session-badge-row {
@@ -418,12 +419,12 @@ textarea:focus {
 .session-badge {
   display: inline-flex;
   align-items: center;
-  min-height: 24px;
-  padding: 0 9px;
+  min-height: 20px;
+  padding: 0 7px;
   border-radius: 999px;
   background: rgba(59, 130, 246, 0.12);
   color: #1f4ea6;
-  font-size: 0.74rem;
+  font-size: 0.68rem;
   font-weight: 700;
 }
 
@@ -433,31 +434,27 @@ textarea:focus {
 }
 
 .session-card p {
-  margin: 4px 0 0;
+  margin: 3px 0 0;
   color: var(--muted);
-  font-size: 0.84rem;
+  font-size: 0.8rem;
   word-break: break-word;
 }
 
 .session-preview {
   color: var(--text) !important;
-  line-height: 1.48;
-  margin-top: 8px !important;
+  line-height: 1.34;
+  margin-top: 5px !important;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.session-preview.muted {
-  color: var(--muted) !important;
-}
-
 .session-meta-grid {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 10px;
+  gap: 2px;
+  margin-top: 6px;
 }
 
 .session-meta-line {
@@ -465,15 +462,24 @@ textarea:focus {
   min-width: 0;
 }
 
+.session-meta-line.compact .session-meta-value {
+  font-size: 0.76rem;
+  line-height: 1.22;
+}
+
+.session-meta-path .session-meta-value {
+  color: var(--text);
+}
+
 .session-meta-label {
   color: var(--muted);
-  font-size: 0.74rem;
+  font-size: 0.68rem;
 }
 
 .session-meta-value {
   color: var(--text);
-  font-size: 0.84rem;
-  line-height: 1.35;
+  font-size: 0.78rem;
+  line-height: 1.22;
   word-break: break-word;
 }
 
@@ -749,7 +755,7 @@ html.touch-input-mode.terminal-layer-mode .terminal-topbar {
 
 .session-rack {
   margin-top: 14px;
-  padding: 16px;
+  padding: 12px;
   border-radius: 28px;
   background: rgba(255, 255, 255, 0.64);
   border: 1px solid rgba(255, 255, 255, 0.74);
@@ -832,7 +838,7 @@ html.touch-input-mode.terminal-layer-mode .terminal-topbar {
 .session-home-grid {
   display: grid;
   grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
-  gap: 12px;
+  gap: 8px;
   flex: 1 1 auto;
   min-height: 0;
 }
@@ -841,8 +847,8 @@ html.touch-input-mode.terminal-layer-mode .terminal-topbar {
 .session-library {
   min-width: 0;
   min-height: 0;
-  padding: 8px 9px;
-  border-radius: 14px;
+  padding: 7px 8px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.68);
   border: 1px solid rgba(255, 255, 255, 0.78);
 }
@@ -850,7 +856,8 @@ html.touch-input-mode.terminal-layer-mode .terminal-topbar {
 .session-launchpad {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0;
+  padding: 5px 6px;
 }
 
 .session-launchpad-copy {
@@ -861,9 +868,9 @@ html.touch-input-mode.terminal-layer-mode .terminal-topbar {
   position: relative;
   justify-content: flex-start;
   align-items: flex-start;
-  gap: 6px;
-  min-height: 28px;
-  padding-right: 56px;
+  gap: 4px;
+  min-height: 0;
+  padding-right: 48px;
 }
 
 .session-library {
@@ -875,16 +882,8 @@ html.touch-input-mode.terminal-layer-mode .terminal-topbar {
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  min-height: 38px;
-  margin: 0 0 8px;
-}
-
-.session-library-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  align-items: flex-start;
-  margin-bottom: 6px;
+  min-height: 0;
+  margin: 0 0 4px;
 }
 
 .session-rack-head h3,
@@ -897,40 +896,9 @@ html.touch-input-mode.terminal-layer-mode .terminal-topbar {
   position: absolute;
   top: 0;
   right: 0;
-  padding: 4px 8px;
-  font-size: 0.68rem;
-  border-radius: 10px;
-}
-
-.session-stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(58px, 1fr));
-  gap: 3px;
-}
-
-.session-stat {
-  padding: 4px 6px;
-  border-radius: 10px;
-  background: rgba(244, 239, 233, 0.88);
-  border: 1px solid rgba(36, 28, 20, 0.06);
-  text-align: center;
-}
-
-.session-stat strong {
-  display: block;
-  font-size: 0.76rem;
-  line-height: 1.05;
-  color: var(--text);
-}
-
-.session-stat span {
-  display: block;
-  margin-top: 0;
-  color: var(--muted);
-  font-size: 0.52rem;
-  line-height: 1.05;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  padding: 3px 7px;
+  font-size: 0.64rem;
+  border-radius: 9px;
 }
 
 .session-rack-home .session-rack-list {
@@ -941,27 +909,28 @@ html.touch-input-mode.terminal-layer-mode .terminal-topbar {
 }
 
 #workspace-home .field {
-  margin-top: 5px;
+  margin-top: 2px;
 }
 
 #workspace-home .field span {
-  margin-bottom: 2px;
+  margin-bottom: 1px;
   font-size: 0.66rem;
 }
 
 #workspace-home input,
 #workspace-home select {
-  padding: 7px 9px;
+  padding: 6px 8px;
   border-radius: 12px;
   font-size: 0.78rem;
 }
 
 #workspace-home .actions {
-  margin-top: 5px;
+  margin-top: 2px;
+  gap: 6px;
 }
 
 #workspace-home .actions button {
-  padding: 6px 8px;
+  padding: 5px 8px;
   font-size: 0.7rem;
   border-radius: 9px;
 }
@@ -1441,15 +1410,6 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
     border-radius: 18px;
   }
 
-  .session-library-head {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .session-stats {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
   .session-meta-grid {
     gap: 4px;
   }
@@ -1574,8 +1534,13 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
 
   .session-launchpad,
   .session-library {
-    padding: 8px 9px;
+    padding: 7px 8px;
     border-radius: 14px;
+  }
+
+  .session-launchpad {
+    gap: 1px;
+    padding: 5px 6px;
   }
 
   .session-back-button {
@@ -1588,10 +1553,6 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
     gap: 8px;
   }
 
-  .session-launchpad {
-    gap: 3px;
-  }
-
   .session-launchpad-copy {
     display: none;
   }
@@ -1601,34 +1562,49 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
     font-size: 0.78rem;
   }
 
-  #workspace-home .session-rack-form {
+  .session-section-head {
     gap: 6px;
+  }
+
+  .session-history-toggle {
+    gap: 4px;
+    padding: 2px;
+  }
+
+  .session-history-toggle-button {
+    min-height: 28px;
+    padding: 0 11px;
+    font-size: 0.72rem;
+  }
+
+  #workspace-home .session-rack-form {
+    gap: 4px;
     margin-top: 0;
   }
 
   #workspace-home .field {
-    margin-top: 5px;
+    margin-top: 2px;
   }
 
   #workspace-home .field span {
-    margin-bottom: 2px;
+    margin-bottom: 1px;
     font-size: 0.68rem;
   }
 
   #workspace-home input,
   #workspace-home select {
-    padding: 7px 9px;
+    padding: 6px 8px;
     border-radius: 12px;
     font-size: 0.78rem;
   }
 
   #workspace-home .actions {
-    margin-top: 5px;
-    gap: 8px;
+    margin-top: 2px;
+    gap: 6px;
   }
 
   #workspace-home .actions button {
-    padding: 6px 8px;
+    padding: 5px 8px;
     font-size: 0.7rem;
     border-radius: 9px;
   }
@@ -1677,31 +1653,9 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
     font-size: 0.7rem;
   }
 
-  .session-stats {
-    gap: 4px;
-  }
-
-  .session-stat {
-    padding: 6px 6px;
-    border-radius: 12px;
-  }
-
-  .session-stat strong {
-    font-size: 0.86rem;
-  }
-
-  .session-stat span {
-    font-size: 0.58rem;
-  }
-
-  .session-library-head {
-    margin-bottom: 8px;
-    gap: 8px;
-  }
-
   .session-history-toolbar {
-    min-height: 34px;
-    margin-bottom: 6px;
+    min-height: 0;
+    margin-bottom: 4px;
   }
 
   .session-rack-home .session-rack-list {
@@ -1709,29 +1663,34 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
   }
 
   .sessions {
-    gap: 8px;
-    margin-top: 10px;
+    gap: 6px;
+    margin-top: 8px;
   }
 
   .session-card {
-    padding: 12px;
-    border-radius: 18px;
+    padding: 10px;
+    border-radius: 14px;
   }
 
   .session-card h3 {
-    font-size: 0.9rem;
-    margin-bottom: 4px;
+    font-size: 0.86rem;
+    margin-bottom: 0;
   }
 
   .session-preview {
-    margin-top: 6px !important;
-    font-size: 0.82rem;
+    margin-top: 4px !important;
+    font-size: 0.78rem;
     -webkit-line-clamp: 1;
   }
 
   .session-meta-grid {
-    margin-top: 8px;
-    gap: 4px;
+    margin-top: 5px;
+    gap: 2px;
+  }
+
+  .session-meta-line.compact .session-meta-value {
+    font-size: 0.73rem;
+    line-height: 1.2;
   }
 
   .session-meta-label {
