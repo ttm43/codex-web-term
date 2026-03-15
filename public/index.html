@@ -76,9 +76,19 @@
                     Start from a folder, give the session a short name if needed, then open it in the CLI page.
                   </p>
                   <div class="session-rack-form">
-                    <label class="field">
+                    <label class="field field-with-picker">
                       <span>Working directory</span>
-                      <input id="cwd" type="text" placeholder="Leave blank to use your home directory" />
+                      <input
+                        id="cwd"
+                        type="text"
+                        placeholder="Select a folder from the list below"
+                        readonly
+                        inputmode="none"
+                      />
+                      <div id="cwd-picker" class="cwd-picker hidden" aria-hidden="true">
+                        <div id="cwd-picker-meta" class="cwd-picker-meta">No folder loaded.</div>
+                        <div id="cwd-picker-list" class="cwd-picker-list"></div>
+                      </div>
                     </label>
                     <label class="field">
                       <span>Session name</span>
@@ -131,7 +141,15 @@
                 </div>
                 <div class="toolbar-title">
                   <p class="section-kicker">Codex CLI</p>
-                  <h2 id="active-session-name">No active session</h2>
+                  <div class="session-title-row">
+                    <h2 id="active-session-name">No active session</h2>
+                    <button id="edit-session-name" class="ghost session-title-edit" type="button" disabled>Edit</button>
+                  </div>
+                  <div id="session-name-editor" class="session-name-editor hidden">
+                    <input id="session-name-inline" type="text" maxlength="120" placeholder="Rename session" />
+                    <button id="save-session-name" class="ghost" type="button">Save</button>
+                    <button id="cancel-session-name" class="ghost" type="button">Cancel</button>
+                  </div>
                   <p id="active-session-meta" class="toolbar-meta">Open a session to start.</p>
                 </div>
               </div>

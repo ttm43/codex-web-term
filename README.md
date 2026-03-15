@@ -11,6 +11,8 @@ Browser-based multi-session terminal for running native `codex` on your Windows 
 - Supports multiple concurrent sessions
 - Lists saved native Codex sessions from `~/.codex/sessions`
 - Lets you reopen saved Codex sessions from the browser
+- Lets you pick the working directory from an in-page path dropdown
+- Lets you rename the active live session directly from the CLI page
 - Uses a short-lived HttpOnly session cookie after token login
 - Supports optional login rate limiting and network allowlists
 - Supports managed restarts with `pm2`
@@ -20,25 +22,34 @@ Browser-based multi-session terminal for running native `codex` on your Windows 
   - your phone on the same LAN
   - your phone over Tailscale
 
+## Prerequisites
+
+- Install native `codex` on the Windows host.
+- If you want phone access over Tailscale, install Tailscale first and sign in on both the Windows host and the phone.
+- Decide whether you want:
+  - local + LAN access
+  - local + Tailscale-only access with `TAILSCALE_ONLY=true`
+
 ## Setup
 
 1. Copy `.env.example` to `.env`
 2. Set a strong `ACCESS_TOKEN`
-3. Optional: tighten access with `TAILSCALE_ONLY=true` or `TRUSTED_CIDRS`
-4. Optional: tune session TTL / rate limits / heartbeat timings
-3. Install dependencies:
+3. If you want Tailscale phone access, make sure Tailscale is already installed, connected, and has assigned an IP on the host.
+4. Optional: tighten access with `TAILSCALE_ONLY=true` or `TRUSTED_CIDRS`
+5. Optional: tune session TTL / rate limits / heartbeat timings
+6. Install dependencies:
 
 ```powershell
 npm install
 ```
 
-4. Start the server directly:
+7. Start the server directly:
 
 ```powershell
 npm start
 ```
 
-5. Or run it under `pm2`:
+8. Or run it under `pm2`:
 
 ```powershell
 npm run prod
@@ -50,7 +61,8 @@ npm run prod
 - Same Wi-Fi phone: `http://<your-pc-lan-ip>:3210`
 - Tailscale phone: `http://<your-tailscale-ip>:3210`
 
-Enter the access token in the page, then create a new session.
+Before the UI will work, open the correct address for your network path, enter the `ACCESS_TOKEN` from `.env`, then create a new session.
+If `TAILSCALE_ONLY=true`, the same-Wi-Fi LAN address is blocked; use `http://localhost:3210` on the PC or `http://<your-tailscale-ip>:3210` from your phone.
 The token is exchanged for an HttpOnly session cookie; subsequent API and WebSocket requests use that cookie instead of sending the token again.
 
 ## PM2 Management
@@ -115,9 +127,11 @@ The token is exchanged for an HttpOnly session cookie; subsequent API and WebSoc
 ## Session Behavior
 
 - New browser sessions start a real `PowerShell` PTY and launch `codex`.
+- The New Session page exposes a path dropdown under `Working directory` so you can pick folders without typing the full path.
 - Saved native Codex sessions from `~/.codex/sessions` are listed in the Sessions panel.
 - Reopening a saved session starts a new live PTY that resumes that Codex session.
 - Browser session names are auto-titled from the first meaningful input when possible.
+- Live session titles can also be edited manually from the CLI header.
 - Historical session timestamps are displayed in `Australia/Melbourne`.
 
 ## Windows Network Notes

@@ -26,6 +26,9 @@ const connectButton = document.getElementById("connect");
 const newSessionButton = document.getElementById("new-session");
 const refreshButton = document.getElementById("refresh");
 const closeSessionButton = document.getElementById("close-session");
+const cwdPickerRoot = document.getElementById("cwd-picker");
+const cwdPickerMetaRoot = document.getElementById("cwd-picker-meta");
+const cwdPickerListRoot = document.getElementById("cwd-picker-list");
 const browseUpButton = document.getElementById("browse-up");
 const syncBrowserPathButton = document.getElementById("sync-browser-path");
 const sessionsRoot = document.getElementById("sessions");
@@ -36,6 +39,11 @@ const homeStatusRoot = document.getElementById("home-status");
 const browserCurrentRoot = document.getElementById("browser-current");
 const directoryTreeRoot = document.getElementById("directory-tree");
 const activeSessionNameRoot = document.getElementById("active-session-name");
+const editSessionNameButton = document.getElementById("edit-session-name");
+const sessionNameEditorRoot = document.getElementById("session-name-editor");
+const sessionNameInlineInput = document.getElementById("session-name-inline");
+const saveSessionNameButton = document.getElementById("save-session-name");
+const cancelSessionNameButton = document.getElementById("cancel-session-name");
 const activeSessionMetaRoot = document.getElementById("active-session-meta");
 const viewConnect = document.getElementById("view-connect");
 const viewWorkspace = document.getElementById("view-workspace");
@@ -79,6 +87,9 @@ let imeComposing = false;
 let clipboardMode = "";
 let latestStatus = "Disconnected";
 let mobileComposerValue = "";
+let defaultCwd = "";
+let cwdPickerRequestId = 0;
+let editingSessionName = false;
 let browserState = {
   path: "",
   parentPath: "",
@@ -498,12 +509,15 @@ function updateInputControls() {
   copyTerminalButton.disabled = !activeSessionId;
   pasteTerminalButton.disabled = !enabled;
   closeSessionButton.disabled = !activeSessionId;
+  editSessionNameButton.disabled = !activeSessionId;
 
   if (!enabled) {
     resetImeBridge();
     blurImeBridge();
     setComposerExpanded(false);
     clearReconnectTimer();
+    editingSessionName = false;
+    sessionNameEditorRoot.classList.add("hidden");
   }
 }
 
@@ -593,8 +607,29 @@ function updateWorkspaceSummaryLegacy() {
   browserPillRoot.textContent = browserState.path || "Not loaded";
 }
 
+function openSessionNameEditor() {
+  if (!activeSessionId || !activeSession) {
+    return;
+  }
+
+  editingSessionName = true;
+  sessionNameInlineInput.value = activeSession.name || "";
+  sessionNameEditorRoot.classList.remove("hidden");
+  window.requestAnimationFrame(() => {
+    sessionNameInlineInput.focus({ preventScroll: true });
+    sessionNameInlineInput.select();
+  });
+}
+
+function closeSessionNameEditor() {
+  editingSessionName = false;
+  sessionNameEditorRoot.classList.add("hidden");
+  sessionNameInlineInput.value = "";
+}
+
 function updateWorkspaceSummary() {
   activeSessionNameRoot.textContent = activeSession?.name || "No active session";
+  sessionNameEditorRoot.classList.toggle("hidden", !editingSessionName);
 
   if (activeSession) {
     const parts = [];
@@ -612,6 +647,35 @@ function updateWorkspaceSummary() {
   }
 
   activeSessionMetaRoot.textContent = "Open a session to start.";
+}
+
+async function renameActiveSession() {
+  if (!activeSessionId) {
+    return;
+  }
+
+  const nextName = String(sessionNameInlineInput.value || "").trim();
+  if (!nextName) {
+    setStatus("Enter a session name.");
+    sessionNameInlineInput.focus({ preventScroll: true });
+    return;
+  }
+
+  try {
+    const payload = await request(`/api/sessions/${activeSessionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name: nextName })
+    });
+    const updatedSession = payload.session;
+    sessions = sessions.map((session) => (session.id === updatedSession.id ? updatedSession : session));
+    activeSession = updatedSession;
+    renderSessions();
+    closeSessionNameEditor();
+    updateWorkspaceSummary();
+    setStatus(`Session renamed to ${updatedSession.name}`);
+  } catch (err) {
+    setStatus(err.message || String(err));
+  }
 }
 
 async function request(url, options = {}) {
@@ -860,6 +924,7 @@ async function connectToSession(sessionId, { resetTerminal = true, allowReconnec
 
   activeSessionId = sessionId;
   activeSession = sessions.find((session) => session.id === sessionId) || activeSession;
+  closeSessionNameEditor();
   renderSessions();
   updateWorkspaceSummary();
   setWorkspaceScreen("terminal");
@@ -948,6 +1013,7 @@ function sendToSession(data) {
 
 function buildDirectoryEntry(entry) {
   const item = document.createElement("button");
+  item.type = "button";
   item.className = `directory-entry ${entry.type}`;
 
   const icon = document.createElement("span");
@@ -971,8 +1037,6 @@ function buildDirectoryEntry(entry) {
   }
   copy.appendChild(meta);
   item.appendChild(copy);
-  item.innerHTML = "";
-  item.textContent = entry.type === "directory" ? `${entry.name}\\` : entry.name;
 
   item.addEventListener("click", async () => {
     if (entry.type === "directory") {
@@ -1024,6 +1088,176 @@ function renderDirectoryBrowser() {
   updateWorkspaceSummary();
 }
 
+function closeCwdPicker() {
+  cwdPickerRoot.classList.add("hidden");
+  cwdPickerRoot.setAttribute("aria-hidden", "true");
+}
+
+function openCwdPicker() {
+  cwdPickerRoot.classList.remove("hidden");
+  cwdPickerRoot.setAttribute("aria-hidden", "false");
+}
+
+function normalizeDirectoryInput(value) {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (/^[A-Za-z]:[\\/]?$/.test(trimmed)) {
+    return `${trimmed[0]}:\\`;
+  }
+  return trimmed;
+}
+
+function splitDirectoryInput(value) {
+  const candidate = normalizeDirectoryInput(value);
+  if (!candidate) {
+    return { path: "", prefix: "" };
+  }
+  if (/^[A-Za-z]:\\$/.test(candidate) || candidate === "\\" || candidate === "/") {
+    return { path: candidate, prefix: "" };
+  }
+
+  const normalized = candidate.replace(/[\\/]+$/, "");
+  const slashIndex = Math.max(normalized.lastIndexOf("\\"), normalized.lastIndexOf("/"));
+  if (slashIndex < 0) {
+    return { path: normalized, prefix: "" };
+  }
+
+  let pathValue = normalized.slice(0, slashIndex);
+  if (/^[A-Za-z]:$/.test(pathValue)) {
+    pathValue = `${pathValue}\\`;
+  }
+  return {
+    path: pathValue,
+    prefix: normalized.slice(slashIndex + 1)
+  };
+}
+
+function buildCwdPickerItem(label, pathValue, action) {
+  const item = document.createElement("button");
+  item.type = "button";
+  item.className = "cwd-picker-item";
+
+  const title = document.createElement("strong");
+  title.textContent = label;
+  item.appendChild(title);
+
+  const meta = document.createElement("span");
+  meta.textContent = pathValue;
+  item.appendChild(meta);
+
+  item.addEventListener("click", async () => {
+    cwdInput.value = pathValue;
+    await action(pathValue);
+  });
+
+  return item;
+}
+
+async function requestDirectoryPayload(pathValue) {
+  const targetPath = String(pathValue || "").trim();
+  const query = targetPath ? `?path=${encodeURIComponent(targetPath)}` : "";
+  return request(`/api/fs${query}`);
+}
+
+function renderCwdPickerEmpty(message) {
+  cwdPickerMetaRoot.textContent = message;
+  cwdPickerListRoot.innerHTML = "";
+}
+
+async function loadCwdPicker(pathValue = "") {
+  const requestedPath =
+    String(pathValue || "").trim() || cwdInput.value.trim() || defaultCwd || browserState.path || activeSession?.cwd;
+
+  if (!requestedPath) {
+    renderCwdPickerEmpty("No folder loaded.");
+    openCwdPicker();
+    return;
+  }
+
+  const requestId = ++cwdPickerRequestId;
+  openCwdPicker();
+
+  try {
+    const payload = await requestDirectoryPayload(requestedPath);
+    if (requestId !== cwdPickerRequestId) {
+      return;
+    }
+
+    cwdPickerMetaRoot.textContent = payload.path || "No folder loaded.";
+    cwdPickerListRoot.innerHTML = "";
+
+    if (payload.parentPath) {
+      cwdPickerListRoot.appendChild(
+        buildCwdPickerItem(".. Parent folder", payload.parentPath, async (nextPath) => {
+          await loadCwdPicker(nextPath);
+        })
+      );
+    }
+
+    const directories = (payload.entries || []).filter((entry) => entry.type === "directory");
+    for (const entry of directories) {
+      cwdPickerListRoot.appendChild(
+        buildCwdPickerItem(entry.name, entry.path, async (nextPath) => {
+          await loadCwdPicker(nextPath);
+        })
+      );
+    }
+
+    if (!directories.length) {
+      cwdPickerListRoot.appendChild(
+        buildCwdPickerItem("Use this folder", payload.path, async () => {
+          closeCwdPicker();
+        })
+      );
+    }
+    return;
+  } catch {
+    const { path: parentPath, prefix } = splitDirectoryInput(requestedPath);
+    if (!parentPath || parentPath === requestedPath) {
+      renderCwdPickerEmpty("Directory not found.");
+      return;
+    }
+
+    try {
+      const payload = await requestDirectoryPayload(parentPath);
+      if (requestId !== cwdPickerRequestId) {
+        return;
+      }
+
+      const directories = (payload.entries || []).filter((entry) => {
+        return entry.type === "directory" && entry.name.toLowerCase().startsWith(prefix.toLowerCase());
+      });
+
+      cwdPickerMetaRoot.textContent = payload.path || parentPath;
+      cwdPickerListRoot.innerHTML = "";
+
+      if (payload.parentPath) {
+        cwdPickerListRoot.appendChild(
+          buildCwdPickerItem(".. Parent folder", payload.parentPath, async (nextPath) => {
+            await loadCwdPicker(nextPath);
+          })
+        );
+      }
+
+      for (const entry of directories) {
+        cwdPickerListRoot.appendChild(
+          buildCwdPickerItem(entry.name, entry.path, async (nextPath) => {
+            await loadCwdPicker(nextPath);
+          })
+        );
+      }
+
+      if (!directories.length) {
+        renderCwdPickerEmpty(`No matching folders under ${payload.path || parentPath}`);
+      }
+    } catch {
+      renderCwdPickerEmpty("Directory not found.");
+    }
+  }
+}
+
 async function loadDirectory(targetPath = "") {
   try {
     const requestedPath =
@@ -1049,6 +1283,15 @@ async function loadDirectory(targetPath = "") {
   }
 }
 
+async function browseToParentDirectory() {
+  if (!browserState.parentPath) {
+    setStatus("Already at the top folder.");
+    return;
+  }
+
+  await loadDirectory(browserState.parentPath);
+}
+
 connectButton.addEventListener("click", async () => {
   try {
     accessToken = tokenInput.value.trim();
@@ -1059,6 +1302,7 @@ connectButton.addEventListener("click", async () => {
     const payload = await request("/api/config");
     accessToken = "";
     tokenInput.value = "";
+    defaultCwd = payload.defaultCwd || "";
     cwdInput.value = cwdInput.value.trim() || payload.defaultCwd || "";
     newSessionButton.disabled = false;
     refreshButton.disabled = false;
@@ -1067,6 +1311,7 @@ connectButton.addEventListener("click", async () => {
     setPanelOpen(false);
     setStatus("Connected. Create or open a session.");
     await refreshSessions();
+    await loadDirectory(cwdInput.value.trim());
     updateInputControls();
   } catch (err) {
     setStatus(err.message || String(err));
@@ -1093,6 +1338,7 @@ newSessionButton.addEventListener("click", async () => {
 refreshButton.addEventListener("click", async () => {
   try {
     await refreshSessions();
+    await loadDirectory(browserState.path || cwdInput.value.trim());
   } catch (err) {
     setStatus(err.message || String(err));
   }
@@ -1106,6 +1352,7 @@ closeSessionButton.addEventListener("click", async () => {
     isManualDisconnect = true;
     await request(`/api/sessions/${activeSessionId}`, { method: "DELETE" });
     disconnectSocket();
+    closeSessionNameEditor();
     pendingOutput = "";
     term.reset();
     activeSessionId = "";
@@ -1137,6 +1384,8 @@ backToConnectButton.addEventListener("click", () => {
   isManualDisconnect = true;
   disconnectSocket();
   closeClipboardSheet({ restoreFocus: false });
+  closeCwdPicker();
+  closeSessionNameEditor();
   activeSessionId = "";
   activeSession = null;
   setPanelOpen(false);
@@ -1151,6 +1400,7 @@ backToConnectButton.addEventListener("click", () => {
 backToSessionsButton.addEventListener("click", async () => {
   isManualDisconnect = true;
   disconnectSocket();
+  closeSessionNameEditor();
   activeSessionId = "";
   activeSession = null;
   setPanelOpen(false);
@@ -1187,12 +1437,21 @@ clipboardCloseButton.addEventListener("click", () => {
   closeClipboardSheet();
 });
 
+editSessionNameButton.addEventListener("click", () => {
+  openSessionNameEditor();
+});
+
+saveSessionNameButton.addEventListener("click", async () => {
+  await renameActiveSession();
+});
+
+cancelSessionNameButton.addEventListener("click", () => {
+  closeSessionNameEditor();
+  updateWorkspaceSummary();
+});
+
 browseUpButton.addEventListener("click", async () => {
-  if (!browserState.parentPath) {
-    setStatus("Already at the top folder.");
-    return;
-  }
-  await loadDirectory(browserState.parentPath);
+  await browseToParentDirectory();
 });
 
 syncBrowserPathButton.addEventListener("click", async () => {
@@ -1202,6 +1461,47 @@ syncBrowserPathButton.addEventListener("click", async () => {
     return;
   }
   await loadDirectory(nextPath);
+});
+
+cwdInput.addEventListener("keydown", async (event) => {
+  if (event.key === "Escape") {
+    closeCwdPicker();
+    return;
+  }
+
+  if (event.key !== "Enter") {
+    return;
+  }
+
+  event.preventDefault();
+  await loadCwdPicker(cwdInput.value.trim());
+});
+
+cwdInput.addEventListener("pointerdown", async (event) => {
+  event.preventDefault();
+  await loadCwdPicker(cwdInput.value.trim());
+});
+
+sessionNameInlineInput.addEventListener("keydown", async (event) => {
+  if (event.key === "Escape") {
+    closeSessionNameEditor();
+    updateWorkspaceSummary();
+    return;
+  }
+
+  if (event.key !== "Enter") {
+    return;
+  }
+
+  event.preventDefault();
+  await renameActiveSession();
+});
+
+document.addEventListener("pointerdown", (event) => {
+  if (event.target === cwdInput || cwdPickerRoot.contains(event.target)) {
+    return;
+  }
+  closeCwdPicker();
 });
 
 if (enableMobileComposer) {

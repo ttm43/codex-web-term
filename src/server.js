@@ -604,6 +604,27 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname.startsWith("/api/sessions/") && req.method === "PATCH") {
+    if (forbidCrossOrigin(req, res)) {
+      return;
+    }
+    if (!isAuthorized(req)) {
+      clearAuthCookie(res);
+      unauthorized(res);
+      return;
+    }
+
+    const id = url.pathname.split("/").at(-1);
+    try {
+      const body = parseJson(await readBody(req));
+      const session = sessionManager.rename(id, body.name);
+      json(res, 200, { session });
+    } catch (err) {
+      json(res, 400, { error: err?.message || String(err) });
+    }
+    return;
+  }
+
   if (url.pathname.startsWith("/api/sessions/") && req.method === "DELETE") {
     if (forbidCrossOrigin(req, res)) {
       return;

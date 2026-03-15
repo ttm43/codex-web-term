@@ -168,6 +168,10 @@ textarea:focus {
   margin-top: 16px;
 }
 
+.field-with-picker {
+  position: relative;
+}
+
 .field span {
   display: block;
   margin-bottom: 8px;
@@ -468,24 +472,139 @@ textarea:focus {
 
 .directory-entry {
   width: 100%;
-  padding: 4px 0;
-  border-radius: 0;
-  border: 0;
-  background: transparent;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(36, 28, 20, 0.06);
+  background: rgba(255, 255, 255, 0.82);
   color: var(--text);
   text-align: left;
   font-size: 0.92rem;
   font-weight: 500;
 }
 
+.directory-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(36, 28, 20, 0.08);
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  flex: 0 0 auto;
+}
+
+.directory-copy {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.directory-copy strong,
+.directory-copy span {
+  display: block;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.directory-copy strong {
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.directory-copy span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
 .directory-entry.directory {
   color: #3a2f23;
 }
 
+.directory-entry.directory .directory-icon {
+  background: rgba(59, 130, 246, 0.12);
+  color: #1f4ea6;
+}
+
 .directory-entry:hover {
-  color: var(--accent-blue);
-  background: transparent;
+  border-color: rgba(59, 130, 246, 0.22);
+  background: rgba(244, 248, 255, 0.95);
+  color: var(--text);
   transform: none;
+}
+
+.cwd-picker {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 8;
+  padding: 10px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  background: rgba(255, 251, 246, 0.96);
+  box-shadow: 0 18px 36px rgba(67, 44, 22, 0.16);
+  backdrop-filter: blur(14px);
+}
+
+.cwd-picker-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.cwd-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: min(42vh, 280px);
+  margin-top: 10px;
+  overflow-y: auto;
+}
+
+.cwd-picker-item {
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(36, 28, 20, 0.06);
+  background: rgba(255, 255, 255, 0.84);
+  color: var(--text);
+  text-align: left;
+}
+
+.cwd-picker-item:hover {
+  border-color: rgba(59, 130, 246, 0.24);
+  background: rgba(244, 248, 255, 0.98);
+  transform: none;
+}
+
+.cwd-picker-item strong,
+.cwd-picker-item span {
+  display: block;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.cwd-picker-item strong {
+  font-size: 0.86rem;
+}
+
+.cwd-picker-item span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.35;
 }
 
 .main {
@@ -558,6 +677,38 @@ html.touch-input-mode.terminal-layer-mode .terminal-topbar {
 .toolbar-title h2 {
   margin: 4px 0 0;
   font-size: 1.25rem;
+}
+
+.session-title-row,
+.session-name-editor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.session-title-row {
+  margin-top: 4px;
+}
+
+.session-title-row h2 {
+  margin: 0;
+}
+
+.session-title-edit,
+.session-name-editor button {
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+}
+
+.session-name-editor {
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.session-name-editor input {
+  min-width: 220px;
+  flex: 1 1 240px;
 }
 
 .toolbar-meta {
@@ -1186,6 +1337,12 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
     font-size: 0.8rem;
   }
 
+  .session-title-edit,
+  .session-name-editor button {
+    padding: 5px 8px;
+    font-size: 0.7rem;
+  }
+
   .terminal-topbar .toolbar-meta {
     font-size: 0.62rem;
   }
@@ -1431,6 +1588,50 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
     padding: 6px 8px;
     font-size: 0.7rem;
     border-radius: 9px;
+  }
+
+  .directory-entry {
+    padding: 8px 9px;
+    border-radius: 12px;
+  }
+
+  .directory-icon {
+    min-width: 36px;
+    height: 22px;
+    padding: 0 7px;
+    font-size: 0.62rem;
+  }
+
+  .directory-copy strong {
+    font-size: 0.82rem;
+  }
+
+  .directory-copy span {
+    font-size: 0.72rem;
+  }
+
+  .cwd-picker {
+    padding: 8px;
+    border-radius: 14px;
+  }
+
+  .cwd-picker-list {
+    gap: 5px;
+    max-height: 32vh;
+  }
+
+  .cwd-picker-item {
+    padding: 8px 9px;
+    border-radius: 12px;
+  }
+
+  .cwd-picker-item strong {
+    font-size: 0.8rem;
+  }
+
+  .cwd-picker-item span,
+  .cwd-picker-meta {
+    font-size: 0.7rem;
   }
 
   .session-stats {

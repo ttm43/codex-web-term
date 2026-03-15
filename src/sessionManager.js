@@ -340,6 +340,18 @@ export class SessionManager {
     session.updatedAt = nowIso();
   }
 
+  rename(id, name) {
+    const session = this.get(id);
+    if (!session) {
+      throw new Error(`Session not found: ${id}`);
+    }
+
+    session.name = normalizeName(name, session.fallbackName || session.name);
+    session.autoNamed = false;
+    session.updatedAt = nowIso();
+    return this.serialize(session);
+  }
+
   close(id) {
     const session = this.get(id);
     if (!session) {
