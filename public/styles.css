@@ -664,7 +664,14 @@ textarea:focus {
 
 #workspace-terminal {
   position: relative;
+  margin: -20px;
   overflow: hidden;
+  background: var(--bg-solid);
+}
+
+#workspace-home {
+  margin: -20px;
+  padding: 16px 20px 20px;
   background: var(--bg-solid);
 }
 
@@ -754,12 +761,12 @@ html.touch-input-mode.terminal-layer-mode .terminal-topbar {
 }
 
 .session-rack {
-  margin-top: 14px;
-  padding: 12px;
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.64);
-  border: 1px solid rgba(255, 255, 255, 0.74);
-  box-shadow: 0 10px 30px rgba(82, 58, 37, 0.05);
+  margin-top: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
   overflow: hidden;
 }
 
@@ -804,8 +811,12 @@ html.touch-input-mode.terminal-layer-mode .terminal-topbar {
 #workspace-home .workspace-topbar {
   grid-template-columns: minmax(0, 1fr);
   gap: 6px;
-  padding: 8px 10px;
-  border-radius: 16px;
+  padding: 0 0 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 #workspace-home .workspace-topbar .section-kicker {
@@ -830,9 +841,9 @@ html.touch-input-mode.terminal-layer-mode .terminal-topbar {
 }
 
 #workspace-home .session-rack {
-  margin-top: 6px;
-  padding: 8px;
-  border-radius: 16px;
+  margin-top: 0;
+  padding: 0;
+  border-radius: 0;
 }
 
 .session-home-grid {
@@ -847,17 +858,17 @@ html.touch-input-mode.terminal-layer-mode .terminal-topbar {
 .session-library {
   min-width: 0;
   min-height: 0;
-  padding: 7px 8px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.68);
-  border: 1px solid rgba(255, 255, 255, 0.78);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
 }
 
 .session-launchpad {
   display: flex;
   flex-direction: column;
   gap: 0;
-  padding: 5px 6px;
+  padding: 0;
 }
 
 .session-launchpad-copy {
@@ -883,7 +894,7 @@ html.touch-input-mode.terminal-layer-mode .terminal-topbar {
   justify-content: flex-end;
   align-items: center;
   min-height: 0;
-  margin: 0 0 4px;
+  margin: 0 0 10px;
 }
 
 .session-rack-head h3,
@@ -935,13 +946,41 @@ html.touch-input-mode.terminal-layer-mode .terminal-topbar {
   border-radius: 9px;
 }
 
+#workspace-home .session-card {
+  padding: 10px 0;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 1px solid rgba(36, 28, 20, 0.08);
+  background: transparent;
+  box-shadow: none;
+}
+
+#workspace-home .session-card:hover {
+  transform: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+#workspace-home .session-card.active {
+  border-color: rgba(36, 28, 20, 0.08);
+  box-shadow: none;
+}
+
+#workspace-home .session-card:last-child {
+  border-bottom: 0;
+}
+
 .terminal-topbar {
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  padding: 7px 9px;
-  border-radius: 18px;
+  padding: 16px 20px 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
   gap: 5px;
 }
 
@@ -1006,9 +1045,9 @@ html.touch-input-mode.terminal-layer-mode .terminal-topbar {
 .terminal-shell-page {
   flex: 1 1 auto;
   min-height: 0;
-  margin-top: 4px;
-  padding: 7px;
-  border-radius: 18px;
+  margin-top: 0;
+  padding: 0;
+  border-radius: 0;
   overflow: hidden;
 }
 
@@ -1030,14 +1069,12 @@ html.touch-input-mode.terminal-layer-mode .terminal-shell-page {
 .terminal-shell {
   flex: 1 1 auto;
   min-height: 0;
-  margin-top: 16px;
-  padding: 16px;
-  border-radius: 30px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.12)),
-    rgba(229, 223, 216, 0.32);
-  border: 1px solid rgba(255, 255, 255, 0.7);
-  box-shadow: 0 24px 60px rgba(49, 33, 18, 0.08);
+  margin-top: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
   position: relative;
   overflow: hidden;
 }
@@ -1046,15 +1083,15 @@ html.touch-input-mode.terminal-layer-mode .terminal-shell {
   margin-top: 0;
   height: 100%;
   min-height: 0;
-  padding: 10px;
-  border-radius: 24px;
+  padding: 0;
+  border-radius: 0;
 }
 
 #terminal {
   height: 100%;
   min-height: 440px;
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0;
+  border: 0;
   background:
     radial-gradient(circle at top, rgba(74, 85, 104, 0.08), transparent 28%),
     #111318;
@@ -1323,6 +1360,15 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
     overflow: hidden;
   }
 
+  #workspace-terminal {
+    margin: -12px;
+  }
+
+  #workspace-home {
+    margin: -12px;
+    padding: 12px;
+  }
+
   .workspace-topbar {
     grid-template-columns: 1fr;
     gap: 12px;
@@ -1331,7 +1377,7 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
 
   .terminal-topbar {
     gap: 4px;
-    padding: 7px 8px;
+    padding: 12px 12px 8px;
   }
 
   .terminal-topbar-main {
@@ -1375,7 +1421,7 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
   }
 
   .terminal-shell {
-    padding: 10px;
+    padding: 0;
     min-height: 0;
     height: 100%;
     margin-top: 0;
@@ -1392,8 +1438,8 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
 
   #workspace-home .workspace-topbar {
     gap: 6px;
-    padding: 8px 10px;
-    border-radius: 16px;
+    padding: 0 0 8px;
+    border-radius: 0;
   }
 
   #workspace-home .toolbar-title h2 {
@@ -1406,8 +1452,8 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
 
   .session-launchpad,
   .session-library {
-    padding: 12px;
-    border-radius: 18px;
+    padding: 0;
+    border-radius: 0;
   }
 
   .session-meta-grid {
@@ -1499,12 +1545,12 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
   }
 
   .session-rack {
-    padding: 12px;
-    border-radius: 22px;
+    padding: 0;
+    border-radius: 0;
   }
 
   #workspace-home .session-rack {
-    margin-top: 8px;
+    margin-top: 0;
     padding: 0;
     border: 0;
     background: transparent;
@@ -1513,8 +1559,8 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
 
   #workspace-home .workspace-topbar {
     gap: 8px;
-    padding: 8px 10px;
-    border-radius: 16px;
+    padding: 0 0 8px;
+    border-radius: 0;
   }
 
   #workspace-home .section-kicker {
@@ -1534,13 +1580,13 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
 
   .session-launchpad,
   .session-library {
-    padding: 7px 8px;
-    border-radius: 14px;
+    padding: 0;
+    border-radius: 0;
   }
 
   .session-launchpad {
     gap: 1px;
-    padding: 5px 6px;
+    padding: 0;
   }
 
   .session-back-button {
@@ -1672,6 +1718,11 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
     border-radius: 14px;
   }
 
+  #workspace-home .session-card {
+    padding: 8px 0;
+    border-radius: 0;
+  }
+
   .session-card h3 {
     font-size: 0.86rem;
     margin-bottom: 0;
@@ -1714,7 +1765,7 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
   }
 
   .terminal-shell {
-    border-radius: 24px;
+    border-radius: 0;
   }
 
   .touch-input-mode .mobile-composer {
