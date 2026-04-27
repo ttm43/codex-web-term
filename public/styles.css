@@ -14,7 +14,7 @@
   --accent-blue: #3b82f6;
   --danger: #bb3e2f;
   --shadow: 0 24px 70px rgba(67, 44, 22, 0.12);
-  --vvh: 100vh;
+  --vvh: 100dvh;
   --keyboard-inset: 0px;
   --terminal-header-height: 0px;
   --terminal-composer-height: 0px;
@@ -261,7 +261,9 @@ textarea:focus {
   left: 0;
   z-index: 20;
   width: min(420px, 92vw);
-  height: 100vh;
+  height: 100dvh;
+  height: var(--vvh);
+  max-height: var(--vvh);
   padding: 14px;
   transform: translateX(calc(-100% - 20px));
   transition: transform 220ms ease;
@@ -1675,6 +1677,8 @@ html.mobile-composer-disabled.touch-input-mode .ime-bridge {
 
   .session-panel {
     width: 100vw;
+    height: calc(var(--vvh) - 8px);
+    max-height: calc(var(--vvh) - 8px);
     padding: 8px;
   }
 
