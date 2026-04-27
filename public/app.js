@@ -906,6 +906,24 @@ function buildSectionHead(text, extraNode = null) {
   return head;
 }
 
+function buildThreadListSection(title, items, { extraNode = null, emptyState = null } = {}) {
+  const section = document.createElement("section");
+  section.className = "thread-list-section";
+  section.appendChild(buildSectionHead(title, extraNode));
+
+  const list = document.createElement("div");
+  list.className = "thread-list-scroll";
+  if (items.length) {
+    for (const session of items) {
+      list.appendChild(buildSessionCard(session));
+    }
+  } else if (emptyState) {
+    list.appendChild(emptyState);
+  }
+  section.appendChild(list);
+  return section;
+}
+
 function buildEmptyState(title, description) {
   const empty = document.createElement("div");
   empty.className = "session-empty";
@@ -927,10 +945,8 @@ function buildBadge(text, extraClass = "") {
   return badge;
 }
 
-function getHistoryProviderFilter(savedSessions) {
-  const availableProviders = providerCatalog.filter((provider) =>
-    savedSessions.some((session) => session.provider === provider.id)
-  );
+function getHistoryProviderFilter() {
+  const availableProviders = providerCatalog;
   if (!availableProviders.length) {
     historyProviderFilter = "";
     return "";
@@ -949,15 +965,13 @@ function getHistoryProviderFilter(savedSessions) {
   return historyProviderFilter;
 }
 
-function buildHistoryToggle(savedSessions) {
-  const availableProviders = providerCatalog.filter((provider) =>
-    savedSessions.some((session) => session.provider === provider.id)
-  );
+function buildHistoryToggle() {
+  const availableProviders = providerCatalog;
   if (availableProviders.length <= 1) {
     return null;
   }
 
-  const currentFilter = getHistoryProviderFilter(savedSessions);
+  const currentFilter = getHistoryProviderFilter();
   const toggle = document.createElement("div");
   toggle.className = "session-history-toggle";
 
@@ -996,28 +1010,23 @@ function renderSessions() {
   }
 
   if (liveSessions.length) {
-    sessionsRoot.appendChild(buildSectionLabel("Live"));
-    for (const session of liveSessions) {
-      sessionsRoot.appendChild(buildSessionCard(session));
-    }
+    sessionsRoot.appendChild(buildThreadListSection("Live", liveSessions));
   }
 
-  if (savedSessions.length) {
-    const currentFilter = getHistoryProviderFilter(savedSessions);
-    const toggle = buildHistoryToggle(savedSessions);
+  if (savedSessions.length || providerCatalog.length > 1) {
+    const currentFilter = getHistoryProviderFilter();
+    const toggle = buildHistoryToggle();
     const provider = getProviderInfo(currentFilter);
     const filteredHistory = savedSessions.filter((session) => session.provider === currentFilter);
-    sessionsRoot.appendChild(buildSectionHead(provider.historyLabel || "History", toggle));
-    if (!filteredHistory.length) {
-      sessionsRoot.appendChild(
-        buildEmptyState(`No ${String(provider.historyLabel || `saved ${provider.label} threads`).toLowerCase()}`, "Switch providers or create a new thread.")
-      );
-      return;
-    }
-
-    for (const session of filteredHistory) {
-      sessionsRoot.appendChild(buildSessionCard(session));
-    }
+    sessionsRoot.appendChild(
+      buildThreadListSection(provider.historyLabel || "History", filteredHistory, {
+        extraNode: toggle,
+        emptyState: buildEmptyState(
+          `No ${String(provider.historyLabel || `saved ${provider.label} threads`).toLowerCase()}`,
+          "Create a new thread or switch providers."
+        )
+      })
+    );
   }
 }
 

@@ -951,6 +951,41 @@ html.touch-input-mode.terminal-layer-mode .terminal-topbar {
   flex-direction: column;
 }
 
+.session-library .sessions {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.thread-list-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.thread-list-section + .thread-list-section {
+  margin-top: 8px;
+}
+
+.thread-list-section:first-child {
+  flex: 0 1 42%;
+}
+
+.thread-list-section:last-child {
+  flex: 1 1 58%;
+}
+
+.thread-list-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 4px;
+  padding-right: 3px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
 .session-history-toolbar {
   display: flex;
   justify-content: flex-end;
@@ -979,6 +1014,7 @@ html.touch-input-mode.terminal-layer-mode .terminal-topbar {
   min-height: 0;
   margin-top: 0;
   padding-right: 4px;
+  overflow: hidden;
 }
 
 #workspace-home .field {
@@ -992,9 +1028,17 @@ html.touch-input-mode.terminal-layer-mode .terminal-topbar {
 
 #workspace-home input,
 #workspace-home select {
-  padding: 6px 8px;
-  border-radius: 12px;
-  font-size: 0.78rem;
+  min-height: 32px;
+  padding: 5px 8px;
+  border-radius: 10px;
+  font-size: 0.68rem;
+  line-height: 1;
+}
+
+html.touch-input-mode #workspace-home input,
+html.touch-input-mode #workspace-home select {
+  font-size: 16px;
+  line-height: 1;
 }
 
 #workspace-home .actions {
@@ -1003,9 +1047,11 @@ html.touch-input-mode.terminal-layer-mode .terminal-topbar {
 }
 
 #workspace-home .actions button {
+  min-height: 32px;
   padding: 5px 8px;
-  font-size: 0.7rem;
-  border-radius: 9px;
+  font-size: 0.68rem;
+  line-height: 1;
+  border-radius: 10px;
 }
 
 #workspace-home .session-card {
@@ -1787,9 +1833,11 @@ html.mobile-composer-disabled.touch-input-mode .ime-bridge {
 
   #workspace-home input,
   #workspace-home select {
-    padding: 6px 8px;
-    border-radius: 12px;
-    font-size: 0.78rem;
+    min-height: 30px;
+    padding: 4px 7px;
+    border-radius: 9px;
+    font-size: 0.64rem;
+    line-height: 1;
   }
 
   #workspace-home .actions {
@@ -1798,8 +1846,10 @@ html.mobile-composer-disabled.touch-input-mode .ime-bridge {
   }
 
   #workspace-home .actions button {
-    padding: 5px 8px;
-    font-size: 0.7rem;
+    min-height: 30px;
+    padding: 4px 7px;
+    font-size: 0.64rem;
+    line-height: 1;
     border-radius: 9px;
   }
 
