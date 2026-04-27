@@ -2,8 +2,9 @@ const term = new window.Terminal({
   cursorBlink: false,
   convertEol: true,
   customGlyphs: false,
-  fontSize: 14,
+  fontSize: 11,
   fontFamily: '"Cascadia Mono", Consolas, monospace',
+  lineHeight: 1,
   scrollback: 5000,
   smoothScrollDuration: 0,
   theme: {
@@ -35,6 +36,7 @@ const sessionsRoot = document.getElementById("sessions");
 const sessionHistoryToolbarRoot = document.getElementById("session-history-toolbar");
 const homeStatusRoot = document.getElementById("home-status");
 const browserCurrentRoot = document.getElementById("browser-current");
+const directorySummaryRoot = document.getElementById("directory-summary");
 const directoryTreeRoot = document.getElementById("directory-tree");
 const activeSessionNameRoot = document.getElementById("active-session-name");
 const editSessionNameButton = document.getElementById("edit-session-name");
@@ -69,6 +71,7 @@ const clipboardHint = document.getElementById("clipboard-hint");
 const clipboardBuffer = document.getElementById("clipboard-buffer");
 const clipboardPrimaryButton = document.getElementById("clipboard-primary");
 const clipboardCloseButton = document.getElementById("clipboard-close");
+const terminalArrowButtons = [...document.querySelectorAll(".terminal-arrow-key")];
 
 let accessToken = "";
 let activeSessionId = "";
@@ -95,8 +98,8 @@ let cwdPickerRequestId = 0;
 let editingSessionName = false;
 let defaultProvider = "codex";
 let providerCatalog = [
-  { id: "codex", label: "Codex", cliLabel: "Codex CLI", historyLabel: "Saved Codex sessions" },
-  { id: "cc", label: "Claude", cliLabel: "Claude CLI", historyLabel: "Saved Claude sessions" }
+  { id: "codex", label: "Codex", cliLabel: "Codex CLI", historyLabel: "Saved Codex threads" },
+  { id: "cc", label: "Claude", cliLabel: "Claude CLI", historyLabel: "Saved Claude threads" }
 ];
 let historyProviderFilter = "";
 let browserState = {
@@ -149,7 +152,7 @@ function getProviderInfo(providerId) {
       id: providerId || "codex",
       label: String(providerId || "codex").toUpperCase(),
       cliLabel: "CLI",
-      historyLabel: "Saved sessions"
+      historyLabel: "Saved threads"
     }
   );
 }
@@ -160,7 +163,12 @@ function applyProviderCatalog(nextProviders = []) {
     id: provider.id,
     label: provider.label,
     cliLabel: provider.cliLabel,
-    historyLabel: provider.historyLabel
+    historyLabel:
+      provider.historyLabel === `Saved ${provider.label} sessions`
+        ? `Saved ${provider.label} threads`
+        : provider.historyLabel === "Saved sessions"
+          ? "Saved threads"
+          : provider.historyLabel
   }));
 
   const currentValue = providerSelect.value || defaultProvider;
@@ -318,6 +326,10 @@ function openClipboardSheet(mode) {
   });
 }
 
+function isClipboardSheetOpen() {
+  return !clipboardSheet.classList.contains("hidden");
+}
+
 async function handleClipboardPrimaryAction() {
   if (clipboardMode === "copy") {
     clipboardBuffer.focus({ preventScroll: true });
@@ -372,7 +384,7 @@ function queueTerminalOutput(chunk) {
 }
 
 function scrollTerminalToLatest({ ensureVisible = false } = {}) {
-  window.requestAnimationFrame(() => {
+  const run = () => {
     if (ensureVisible) {
       terminalRoot.scrollIntoView({
         block: "end",
@@ -385,7 +397,27 @@ function scrollTerminalToLatest({ ensureVisible = false } = {}) {
     if (viewport) {
       viewport.scrollTop = viewport.scrollHeight;
     }
+  };
+
+  window.requestAnimationFrame(() => {
+    run();
+    window.requestAnimationFrame(run);
+    window.setTimeout(run, 80);
+    window.setTimeout(run, 220);
   });
+}
+
+function settleTerminalViewport() {
+  const run = () => {
+    requestViewportMetrics();
+    syncTerminalSize();
+    scrollTerminalToLatest();
+  };
+
+  window.requestAnimationFrame(run);
+  window.setTimeout(run, 80);
+  window.setTimeout(run, 220);
+  window.setTimeout(run, 500);
 }
 
 function lockRootScrollPosition() {
@@ -452,8 +484,14 @@ function syncComposerLayout() {
   }
 
   imeBridge.style.height = "0px";
-  const minHeight = workspaceTerminal.classList.contains("composer-active") ? 84 : 44;
-  const nextHeight = Math.min(140, Math.max(minHeight, imeBridge.scrollHeight || 0));
+  const keyboardOpen = document.documentElement.classList.contains("keyboard-open");
+  const minHeight = workspaceTerminal.classList.contains("composer-active")
+    ? keyboardOpen
+      ? 30
+      : 38
+    : 30;
+  const maxHeight = keyboardOpen ? 48 : 58;
+  const nextHeight = Math.min(maxHeight, Math.max(minHeight, imeBridge.scrollHeight || 0));
   imeBridge.style.height = `${nextHeight}px`;
   syncTerminalChromeBounds();
 }
@@ -466,7 +504,7 @@ function resetImeBridge() {
 }
 
 function focusImeBridge() {
-  if (!useImeBridge || !hasLiveSession()) {
+  if (!useImeBridge || !hasLiveSession() || isClipboardSheetOpen()) {
     return;
   }
 
@@ -523,14 +561,14 @@ function syncImeBridgeValue() {
 
 function submitImeBridge() {
   if (!hasLiveSession()) {
-    setStatus("Open a session first.");
+    setStatus("Open a thread first.");
     return;
   }
 
   syncImeBridgeValue();
   sendToSession("\r");
   resetImeBridge();
-  blurImeBridge();
+  focusImeBridge();
   requestViewportMetrics();
   scrollTerminalToLatest();
 }
@@ -543,9 +581,12 @@ function applyViewportMetrics() {
   viewportFrame = null;
   const viewport = window.visualViewport;
   const viewportHeight = Math.round(viewport?.height || window.innerHeight);
+  const viewportOffsetTop = Math.round(viewport?.offsetTop || 0);
   const keyboardInset = Math.max(0, window.innerHeight - viewportHeight);
   const keyboardOpen = keyboardInset > 120;
-  document.documentElement.style.setProperty("--vvh", `${viewportHeight}px`);
+  document.documentElement.style.setProperty("--vvh", keyboardOpen ? `${viewportHeight}px` : "100dvh");
+  document.documentElement.style.setProperty("--visual-viewport-height", `${viewportHeight}px`);
+  document.documentElement.style.setProperty("--visual-viewport-offset-top", `${viewportOffsetTop}px`);
   document.documentElement.style.setProperty("--keyboard-inset", `${keyboardInset}px`);
   document.documentElement.classList.toggle("keyboard-open", keyboardOpen);
   if (keyboardOpen) {
@@ -562,6 +603,16 @@ function applyViewportMetrics() {
   syncTerminalSize();
   if (keyboardOpen) {
     scrollTerminalToLatest();
+  }
+  if (
+    keyboardOpen &&
+    useImeBridge &&
+    hasLiveSession() &&
+    !document.hidden &&
+    !isClipboardSheetOpen() &&
+    !imeBridge.matches(":focus")
+  ) {
+    focusImeBridge();
   }
   keyboardWasOpen = keyboardOpen;
 }
@@ -595,6 +646,11 @@ function setWorkspaceScreen(name) {
   deferRootScrollLock();
   syncTerminalChromeBounds();
   syncComposerLayout();
+  if (terminal && useImeBridge && hasLiveSession()) {
+    window.requestAnimationFrame(() => {
+      focusImeBridge();
+    });
+  }
 }
 
 function setPanelOpen(open) {
@@ -615,6 +671,9 @@ function updateInputControls() {
   pasteTerminalButton.disabled = !enabled;
   closeSessionButton.disabled = !activeSessionId;
   editSessionNameButton.disabled = !activeSessionId;
+  for (const button of terminalArrowButtons) {
+    button.disabled = !enabled;
+  }
 
   if (!enabled) {
     resetImeBridge();
@@ -714,7 +773,7 @@ function updateWorkspaceSummaryLegacy() {
     }
     activeSessionMetaRoot.textContent = parts.join(" · ");
   } else {
-    activeSessionMetaRoot.textContent = "Connect, then open a session.";
+    activeSessionMetaRoot.textContent = "Connect, then open a thread.";
   }
 
   browserPillRoot.textContent = browserState.path || "Not loaded";
@@ -742,7 +801,7 @@ function closeSessionNameEditor() {
 
 function updateWorkspaceSummary() {
   activeSessionProviderRoot.textContent = activeSession?.cliLabel || getProviderInfo(providerSelect.value).cliLabel || "CLI";
-  activeSessionNameRoot.textContent = activeSession?.name || "No active session";
+  activeSessionNameRoot.textContent = activeSession?.name || "No active thread";
   sessionNameEditorRoot.classList.toggle("hidden", !editingSessionName);
 
   if (activeSession) {
@@ -760,7 +819,7 @@ function updateWorkspaceSummary() {
     return;
   }
 
-  activeSessionMetaRoot.textContent = "Open a session to start.";
+  activeSessionMetaRoot.textContent = "Open a thread to start.";
 }
 
 async function renameActiveSession() {
@@ -770,7 +829,7 @@ async function renameActiveSession() {
 
   const nextName = String(sessionNameInlineInput.value || "").trim();
   if (!nextName) {
-    setStatus("Enter a session name.");
+    setStatus("Enter a thread name.");
     sessionNameInlineInput.focus({ preventScroll: true });
     return;
   }
@@ -786,7 +845,7 @@ async function renameActiveSession() {
     renderSessions();
     closeSessionNameEditor();
     updateWorkspaceSummary();
-    setStatus(`Session renamed to ${updatedSession.name}`);
+    setStatus(`Thread renamed to ${updatedSession.name}`);
   } catch (err) {
     setStatus(err.message || String(err));
   }
@@ -929,8 +988,8 @@ function renderSessions() {
   if (!sessions.length) {
     sessionsRoot.appendChild(
       buildEmptyState(
-        "No sessions yet",
-        "Create a new session here. If the name is blank, the first prompt will become the title."
+        "No threads yet",
+        "Create a new thread here. If the name is blank, the first prompt will become the title."
       )
     );
     return;
@@ -948,10 +1007,10 @@ function renderSessions() {
     const toggle = buildHistoryToggle(savedSessions);
     const provider = getProviderInfo(currentFilter);
     const filteredHistory = savedSessions.filter((session) => session.provider === currentFilter);
-    sessionsRoot.appendChild(buildSectionHead("History", toggle));
+    sessionsRoot.appendChild(buildSectionHead(provider.historyLabel || "History", toggle));
     if (!filteredHistory.length) {
       sessionsRoot.appendChild(
-        buildEmptyState(`No saved ${provider.label} sessions`, "Switch providers or create a new session.")
+        buildEmptyState(`No ${String(provider.historyLabel || `saved ${provider.label} threads`).toLowerCase()}`, "Switch providers or create a new thread.")
       );
       return;
     }
@@ -1087,6 +1146,7 @@ async function refreshSessions() {
 
 function syncTerminalSize() {
   fitAddon.fit();
+  scrollTerminalToLatest();
   if (socket && socket.readyState === WebSocket.OPEN) {
     socket.send(
       JSON.stringify({
@@ -1171,7 +1231,9 @@ async function connectToSession(sessionId, { resetTerminal = true, allowReconnec
   ws.addEventListener("open", async () => {
     setStatus("connected");
     syncTerminalSize();
-    if (!useImeBridge) {
+    if (useImeBridge) {
+      focusImeBridge();
+    } else {
       term.focus();
     }
     updateInputControls();
@@ -1198,7 +1260,7 @@ async function connectToSession(sessionId, { resetTerminal = true, allowReconnec
       return;
     }
     if (payload.type === "error") {
-      setStatus(payload.error || "Session error");
+      setStatus(payload.error || "Thread error");
     }
   });
 
@@ -1234,7 +1296,7 @@ async function openSession(sessionId) {
 
 function sendToSession(data) {
   if (!hasLiveSession()) {
-    setStatus("Open a session first.");
+    setStatus("Open a thread first.");
     return;
   }
 
@@ -1289,23 +1351,21 @@ function renderDirectoryBrowser() {
   directoryTreeRoot.innerHTML = "";
 
   if (!browserState.path) {
+    directorySummaryRoot.textContent = "";
     directoryTreeRoot.appendChild(
-      buildEmptyState("No folder loaded", "Open a session first, then use the menu to browse files.")
+      buildEmptyState("No folder loaded", "Open a thread first, then use the menu to browse files.")
     );
     updateWorkspaceSummary();
     return;
   }
 
-  const summary = document.createElement("div");
-  summary.className = "directory-summary";
-  summary.textContent = browserState.truncated
+  directorySummaryRoot.textContent = browserState.truncated
     ? `Showing first ${browserState.entries.length} of ${browserState.totalEntries} entries.`
     : `${browserState.totalEntries} entries`;
-  directoryTreeRoot.appendChild(summary);
 
   if (!browserState.entries.length) {
     directoryTreeRoot.appendChild(
-      buildEmptyState("This folder is empty", "Go up one level or sync back to the session directory.")
+      buildEmptyState("This folder is empty", "Go up one level or sync back to the thread directory.")
     );
     updateWorkspaceSummary();
     return;
@@ -1546,7 +1606,7 @@ connectButton.addEventListener("click", async () => {
     setView("workspace");
     setWorkspaceScreen("home");
     setPanelOpen(false);
-    setStatus("Connected. Create or open a session.");
+    setStatus("Connected. Create or open a thread.");
     await refreshSessions();
     await loadDirectory(cwdInput.value.trim());
     updateInputControls();
@@ -1589,7 +1649,7 @@ closeSessionButton.addEventListener("click", async () => {
     updateInputControls();
     updateWorkspaceSummary();
     await refreshSessions();
-    setStatus("Session closed.");
+    setStatus("Thread closed.");
     setWorkspaceScreen("home");
     setPanelOpen(false);
   } catch (err) {
@@ -1636,7 +1696,7 @@ backToSessionsButton.addEventListener("click", async () => {
   setWorkspaceScreen("home");
   term.reset();
   await refreshSessions();
-  setStatus("Choose another session.");
+  setStatus("Choose another thread.");
 });
 
 copyTerminalButton.addEventListener("click", () => {
@@ -1645,7 +1705,7 @@ copyTerminalButton.addEventListener("click", () => {
 
 pasteTerminalButton.addEventListener("click", () => {
   if (!hasLiveSession()) {
-    setStatus("Open a session first.");
+    setStatus("Open a thread first.");
     return;
   }
   openClipboardSheet("paste");
@@ -1686,7 +1746,7 @@ browseUpButton.addEventListener("click", async () => {
 syncBrowserPathButton.addEventListener("click", async () => {
   const nextPath = activeSession?.cwd || cwdInput.value.trim() || browserState.path;
   if (!nextPath) {
-    setStatus("No session folder available.");
+    setStatus("No thread folder available.");
     return;
   }
   await loadDirectory(nextPath);
@@ -1759,6 +1819,9 @@ term.onResize(() => {
 });
 
 terminalRoot.addEventListener("click", () => {
+  if (isClipboardSheetOpen()) {
+    return;
+  }
   if (useImeBridge) {
     focusImeBridge();
     return;
@@ -1826,6 +1889,14 @@ imeBridge.addEventListener("blur", () => {
     setComposerExpanded(false);
   }
   syncComposerLayout();
+  if (useImeBridge && hasLiveSession() && !document.hidden) {
+    keyboardWasOpen = false;
+    document.documentElement.classList.remove("keyboard-open");
+    document.documentElement.style.setProperty("--vvh", "100dvh");
+    document.documentElement.style.setProperty("--keyboard-inset", "0px");
+    lockRootScrollPosition();
+    settleTerminalViewport();
+  }
 });
 
 imeBridge.addEventListener("input", () => {
@@ -1885,6 +1956,31 @@ escKeyButton.addEventListener("click", () => {
 
   term.focus();
 });
+
+for (const button of terminalArrowButtons) {
+  button.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+  });
+
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    const arrowMap = {
+      up: "\u001b[A",
+      down: "\u001b[B",
+      right: "\u001b[C",
+      left: "\u001b[D"
+    };
+    const data = arrowMap[button.dataset.arrowKey];
+    if (!data) {
+      return;
+    }
+    sendToSession(data);
+    button.blur();
+    if (!useImeBridge) {
+      term.focus();
+    }
+  });
+}
 
 applyProviderCatalog(providerCatalog);
 updateInputControls();

@@ -243,6 +243,22 @@ function uniqueStrings(values) {
   return [...new Set(values.filter(Boolean).map((value) => String(value).trim().toLowerCase()))];
 }
 
+function buildPtyEnv() {
+  const env = {
+    ...process.env,
+    TERM: "xterm-256color"
+  };
+  for (const key of [
+    "CODEX_CI",
+    "CODEX_MANAGED_BY_NPM",
+    "CODEX_SANDBOX_NETWORK_DISABLED",
+    "CODEX_THREAD_ID"
+  ]) {
+    delete env[key];
+  }
+  return env;
+}
+
 function customNameKey(providerId, resumeSessionId) {
   return `${String(providerId || "codex").trim()}:${String(resumeSessionId || "").trim()}`;
 }
@@ -331,7 +347,7 @@ function buildProviders(config) {
       aliases: ["codex"],
       label: "Codex",
       cliLabel: "Codex CLI",
-      historyLabel: "Saved Codex sessions",
+      historyLabel: "Saved Codex threads",
       fallbackPrefix: "codex",
       sessionsDir: config.codexSessionsDir,
       bootstrapNames: codexBootstrapNames,
@@ -494,10 +510,7 @@ export class SessionManager {
       cols: 120,
       rows: 30,
       cwd: resolvedCwd,
-      env: {
-        ...process.env,
-        TERM: "xterm-256color"
-      }
+      env: buildPtyEnv()
     });
 
     const session = {

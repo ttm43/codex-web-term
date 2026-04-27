@@ -1,7 +1,29 @@
 const path = require("node:path");
+const os = require("node:os");
 
 const root = __dirname;
 const logsDir = path.join(root, "logs");
+const home = os.homedir();
+const managedPath =
+  process.platform === "win32"
+    ? process.env.Path || process.env.PATH || ""
+    : [
+        path.join(home, ".npm-global", "bin"),
+        "/usr/local/sbin",
+        "/usr/local/bin",
+        "/usr/sbin",
+        "/usr/bin",
+        "/sbin",
+        "/bin",
+        "/snap/bin"
+      ].join(path.delimiter);
+const baseEnv = {
+  HOME: home,
+  USER: process.env.USER || process.env.USERNAME || "",
+  LOGNAME: process.env.LOGNAME || process.env.USER || "",
+  SHELL: process.env.SHELL || "/bin/bash",
+  PATH: managedPath
+};
 
 const shared = {
   script: path.join(root, "src", "server.js"),
@@ -18,7 +40,9 @@ const shared = {
   error_file: path.join(logsDir, "pm2-error.log"),
   merge_logs: true,
   time: true,
+  filter_env: ["CODEX_"],
   env: {
+    ...baseEnv,
     NODE_ENV: "production"
   }
 };
@@ -40,6 +64,7 @@ module.exports = {
         path.join(root, "node_modules")
       ],
       env: {
+        ...baseEnv,
         NODE_ENV: "development"
       }
     }

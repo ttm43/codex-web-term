@@ -272,6 +272,8 @@ textarea:focus {
 }
 
 .session-panel-shell {
+  display: flex;
+  min-height: 0;
   height: 100%;
   padding: 12px;
   border: 1px solid rgba(255, 255, 255, 0.74);
@@ -279,14 +281,56 @@ textarea:focus {
   background: rgba(255, 251, 246, 0.88);
   box-shadow: 0 30px 80px rgba(57, 37, 19, 0.16);
   backdrop-filter: blur(22px);
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .session-panel-top {
+  justify-content: space-between;
+  gap: 8px;
   margin-bottom: 12px;
 }
 
+.session-panel-top > div,
+.sidebar-section-head > div {
+  min-width: 0;
+}
+
+.session-panel .section-kicker {
+  font-size: 0.64rem;
+  line-height: 1.08;
+  letter-spacing: 0.08em;
+}
+
+.session-panel h2 {
+  margin: 2px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.84rem;
+  line-height: 1.05;
+}
+
+.session-panel button,
+.session-panel .ghost {
+  min-height: 32px;
+  padding: 5px 8px;
+  border-radius: 10px;
+  font-size: 0.68rem;
+  line-height: 1;
+}
+
+.session-panel .icon-button {
+  min-width: 34px;
+  min-height: 32px;
+  padding: 6px;
+}
+
 .sidebar-section {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
   padding: 14px;
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.6);
@@ -300,14 +344,13 @@ textarea:focus {
 .sidebar-section-head {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
-  margin-bottom: 12px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
 }
 
 .sidebar-section-head h2 {
-  margin: 5px 0 0;
-  font-size: 1.14rem;
+  margin: 2px 0 0;
 }
 
 .sessions {
@@ -484,7 +527,13 @@ textarea:focus {
 }
 
 .directory-actions {
+  flex: 0 0 auto;
   flex-wrap: wrap;
+  gap: 6px;
+}
+
+.directory-actions #close-panel {
+  margin-left: auto;
 }
 
 .browser-current,
@@ -496,29 +545,38 @@ textarea:focus {
 
 .browser-current,
 .directory-summary {
-  margin-top: 12px;
-  font-size: 0.86rem;
+  margin-top: 8px;
+  font-size: 0.64rem;
+  line-height: 1.08;
 }
 
 .directory-tree {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 12px;
+  gap: 3px;
+  margin-top: 8px;
+  padding-right: 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 
 .directory-entry {
   width: 100%;
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 16px;
+  gap: 6px;
+  min-height: 32px;
+  padding: 5px 8px;
+  border-radius: 10px;
   border: 1px solid rgba(36, 28, 20, 0.06);
   background: rgba(255, 255, 255, 0.82);
   color: var(--text);
   text-align: left;
-  font-size: 0.92rem;
+  font-size: 0.68rem;
+  line-height: 1;
   font-weight: 500;
 }
 
@@ -526,15 +584,16 @@ textarea:focus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 42px;
-  height: 24px;
-  padding: 0 8px;
+  min-width: 30px;
+  height: 18px;
+  padding: 0 5px;
   border-radius: 999px;
   background: rgba(36, 28, 20, 0.08);
   color: var(--muted);
-  font-size: 0.66rem;
+  font-size: 0.54rem;
+  line-height: 1;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
   flex: 0 0 auto;
 }
 
@@ -543,7 +602,7 @@ textarea:focus {
   flex: 1 1 auto;
   flex-direction: column;
   min-width: 0;
-  gap: 2px;
+  gap: 1px;
 }
 
 .directory-copy strong,
@@ -554,14 +613,15 @@ textarea:focus {
 }
 
 .directory-copy strong {
-  font-size: 0.9rem;
+  font-size: 0.68rem;
+  line-height: 1.1;
   color: var(--text);
 }
 
 .directory-copy span {
   color: var(--muted);
-  font-size: 0.78rem;
-  line-height: 1.35;
+  font-size: 0.58rem;
+  line-height: 1.12;
 }
 
 .directory-entry.directory {
@@ -1168,10 +1228,10 @@ html.touch-input-mode.terminal-layer-mode #terminal {
 .touch-input-mode .mobile-composer {
   display: flex;
   align-items: flex-end;
-  gap: 8px;
+  gap: 6px;
   flex: 0 0 auto;
   margin-top: 6px;
-  padding: 2px 2px calc(6px + env(safe-area-inset-bottom));
+  padding: 3px 4px calc(4px + env(safe-area-inset-bottom));
 }
 
 html.touch-input-mode.terminal-layer-mode .mobile-composer {
@@ -1179,6 +1239,7 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
   right: 0;
   bottom: 0;
   left: 0;
+  background: var(--bg-solid);
   margin-top: 0;
   z-index: 3;
 }
@@ -1186,11 +1247,11 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
 .composer-side,
 .composer-send {
   flex: 0 0 auto;
-  min-width: 44px;
-  min-height: 44px;
+  min-width: 38px;
+  min-height: 38px;
   border-radius: 999px;
-  padding: 8px 10px;
-  font-size: 0.72rem;
+  padding: 6px 8px;
+  font-size: 0.68rem;
 }
 
 .composer-send {
@@ -1203,7 +1264,7 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
   min-width: 0;
   display: flex;
   align-items: center;
-  padding: 0 12px;
+  padding: 0 10px;
   border-radius: 999px;
   background: rgba(248, 246, 242, 0.96);
   border: 1px solid rgba(36, 28, 20, 0.08);
@@ -1212,33 +1273,71 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
     min-height 160ms ease,
     border-radius 160ms ease,
     box-shadow 160ms ease;
-  min-height: 50px;
+  min-height: 40px;
 }
 
 .touch-input-mode .workspace-screen.composer-active .composer-input-shell {
-  min-height: 90px;
-  border-radius: 24px;
-  box-shadow: 0 14px 30px rgba(82, 58, 37, 0.08);
-  align-items: stretch;
+  min-height: 40px;
+  border-radius: 999px;
+  box-shadow: 0 10px 22px rgba(82, 58, 37, 0.07);
+  align-items: center;
 }
 
-.touch-input-mode.keyboard-open #workspace-terminal .terminal-topbar {
+html.touch-input-mode.terminal-layer-mode #workspace-terminal .terminal-topbar {
   gap: 3px;
+  padding: 8px 10px 5px;
+}
+
+html.touch-input-mode.terminal-layer-mode #workspace-terminal .toolbar-left {
+  gap: 3px;
+}
+
+html.touch-input-mode.terminal-layer-mode #workspace-terminal .terminal-topbar .ghost,
+html.touch-input-mode.terminal-layer-mode #workspace-terminal .terminal-topbar #close-session {
+  padding: 4px 7px;
+  font-size: 0.68rem;
+}
+
+html.touch-input-mode.terminal-layer-mode #workspace-terminal .terminal-topbar .icon-button {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 6px;
+}
+
+html.touch-input-mode.terminal-layer-mode #workspace-terminal .terminal-topbar .toolbar-title h2 {
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
+.touch-input-mode.keyboard-open #workspace-terminal .mobile-composer {
+  padding: 3px 4px calc(3px + env(safe-area-inset-bottom));
+}
+
+.touch-input-mode.keyboard-open #workspace-terminal .composer-input-shell {
+  min-height: 38px;
+}
+
+.touch-input-mode.keyboard-open #workspace-terminal .composer-side,
+.touch-input-mode.keyboard-open #workspace-terminal .composer-send {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 5px 7px;
+  font-size: 0.66rem;
 }
 
 .ime-bridge {
   width: 100%;
-  min-height: 44px;
-  max-height: 140px;
-  padding: 12px 0;
+  min-height: 30px;
+  max-height: 58px;
+  padding: 5px 0;
   margin: 0;
   border: 0;
   background: transparent;
   box-shadow: none;
   resize: none;
   color: var(--text);
-  font-size: 1rem;
-  line-height: 1.35;
+  font-size: 0.86rem;
+  line-height: 1.05;
   overflow-y: auto;
 }
 
@@ -1271,6 +1370,51 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
 
 .mobile-composer-disabled.touch-input-mode #esc-key {
   display: inline-flex;
+}
+
+html.mobile-composer-disabled.touch-input-mode .mobile-composer {
+  position: fixed !important;
+  left: 0 !important;
+  bottom: 0 !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-height: 1px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  opacity: 0.01 !important;
+  pointer-events: none !important;
+  background: transparent !important;
+}
+
+html.mobile-composer-disabled.touch-input-mode .composer-side,
+html.mobile-composer-disabled.touch-input-mode .composer-send {
+  display: none !important;
+}
+
+html.mobile-composer-disabled.touch-input-mode .composer-input-shell {
+  display: block !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-height: 1px !important;
+  max-height: 1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html.mobile-composer-disabled.touch-input-mode .ime-bridge {
+  display: block !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-height: 1px !important;
+  max-height: 1px !important;
+  padding: 0 !important;
+  opacity: 0.01 !important;
+  color: transparent !important;
+  caret-color: transparent !important;
 }
 
 .clipboard-sheet {
@@ -1800,4 +1944,429 @@ html.touch-input-mode.terminal-layer-mode .mobile-composer {
   #terminal .xterm-screen {
     pointer-events: none;
   }
+}
+
+html.mobile-composer-disabled.touch-input-mode .mobile-composer,
+html.mobile-composer-disabled.touch-input-mode .composer-input-shell,
+html.mobile-composer-disabled.touch-input-mode .ime-bridge {
+  width: 1px !important;
+  height: 1px !important;
+  min-height: 1px !important;
+  max-height: 1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Terminal session page v2: toolbar + terminal canvas + invisible keyboard bridge. */
+#workspace-terminal.terminal-page {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100dvh;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  background: #111318;
+}
+
+#workspace-terminal.terminal-page.hidden {
+  display: none !important;
+}
+
+.terminal-page .terminal-header {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  padding: 8px 10px 7px;
+  border: 0;
+  border-radius: 0;
+  background: #f6f2ec;
+  box-shadow: 0 1px 0 rgba(36, 28, 20, 0.12);
+  backdrop-filter: none;
+}
+
+.terminal-page .terminal-header-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.terminal-page .terminal-nav,
+.terminal-page .terminal-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.terminal-page .terminal-actions {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.terminal-page .terminal-actions::-webkit-scrollbar {
+  display: none;
+}
+
+.terminal-page .terminal-title {
+  min-width: 0;
+}
+
+.terminal-page .terminal-title .section-kicker {
+  display: none;
+}
+
+.terminal-page .session-title-row {
+  min-width: 0;
+  margin: 0;
+}
+
+.terminal-page .session-title-row h2 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.84rem;
+  line-height: 1.05;
+}
+
+.terminal-page .toolbar-meta {
+  margin: 2px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.64rem;
+  line-height: 1.08;
+  color: var(--muted);
+}
+
+.terminal-page button,
+.terminal-page .ghost,
+.terminal-page #close-session {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 5px 8px;
+  border-radius: 10px;
+  font-size: 0.68rem;
+  line-height: 1;
+}
+
+.terminal-page .terminal-menu-button {
+  width: 34px;
+  min-width: 34px;
+  min-height: 32px;
+  padding: 6px;
+}
+
+.terminal-page #open-panel span {
+  width: 16px;
+  height: 2px;
+}
+
+.terminal-page #close-session {
+  background: rgba(187, 62, 47, 0.12);
+  color: var(--danger);
+  border: 1px solid rgba(187, 62, 47, 0.18);
+}
+
+.terminal-page .terminal-arrow-pad {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+  padding-left: 2px;
+}
+
+.terminal-page .terminal-arrow-key {
+  min-width: 30px;
+  width: 30px;
+  padding-inline: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.terminal-page .terminal-arrow-key:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.terminal-page #esc-key {
+  position: static !important;
+  inset: auto !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  z-index: auto !important;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+
+.terminal-page .session-title-edit {
+  min-height: 28px;
+  padding: 4px 7px;
+  font-size: 0.64rem;
+}
+
+.terminal-page .session-name-editor {
+  margin-top: 6px;
+  gap: 6px;
+}
+
+.terminal-page .session-name-editor input {
+  min-height: 34px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+}
+
+.terminal-page .session-name-editor button {
+  min-height: 34px;
+}
+
+.terminal-page .terminal-stage {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  overflow: hidden;
+  background: #111318;
+  box-shadow: none;
+}
+
+.terminal-page #terminal {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: #111318;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.terminal-page #terminal .xterm,
+.terminal-page #terminal .xterm-screen {
+  height: 100%;
+}
+
+.terminal-page #terminal .xterm-viewport {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+.terminal-page .keyboard-bridge {
+  position: fixed !important;
+  left: 0 !important;
+  bottom: 0 !important;
+  z-index: 0 !important;
+  display: block !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-height: 1px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  opacity: 0.01 !important;
+  pointer-events: none !important;
+  background: transparent !important;
+}
+
+.terminal-page .keyboard-bridge .composer-side,
+.terminal-page .keyboard-bridge .composer-send {
+  display: none !important;
+}
+
+.terminal-page .keyboard-bridge .composer-input-shell {
+  display: block !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-height: 1px !important;
+  max-height: 1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: hidden !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.terminal-page .keyboard-bridge .ime-bridge {
+  display: block !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-height: 1px !important;
+  max-height: 1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  opacity: 0.01 !important;
+  color: transparent !important;
+  caret-color: transparent !important;
+  background: transparent !important;
+}
+
+html.touch-input-mode.terminal-layer-mode,
+html.touch-input-mode.terminal-layer-mode body,
+html.touch-input-mode.terminal-layer-mode .app,
+html.touch-input-mode.terminal-layer-mode .view,
+html.touch-input-mode.terminal-layer-mode .view-workspace,
+html.touch-input-mode.terminal-layer-mode .main,
+html.touch-input-mode.terminal-layer-mode #workspace-terminal.terminal-page {
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  overflow: hidden !important;
+}
+
+html.touch-input-mode.terminal-layer-mode.keyboard-open,
+html.touch-input-mode.terminal-layer-mode.keyboard-open body,
+html.touch-input-mode.terminal-layer-mode.keyboard-open .app,
+html.touch-input-mode.terminal-layer-mode.keyboard-open .view,
+html.touch-input-mode.terminal-layer-mode.keyboard-open .view-workspace,
+html.touch-input-mode.terminal-layer-mode.keyboard-open .main,
+html.touch-input-mode.terminal-layer-mode.keyboard-open #workspace-terminal.terminal-page {
+  height: var(--vvh) !important;
+  min-height: var(--vvh) !important;
+  overflow: hidden !important;
+}
+
+html.touch-input-mode.terminal-layer-mode .main {
+  padding: 0 !important;
+}
+
+html.touch-input-mode.terminal-layer-mode #workspace-terminal.terminal-page {
+  position: fixed !important;
+  inset: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  margin: 0 !important;
+}
+
+html.touch-input-mode.terminal-layer-mode.keyboard-open #workspace-terminal.terminal-page {
+  height: var(--vvh) !important;
+  min-height: var(--vvh) !important;
+}
+
+html.touch-input-mode.terminal-layer-mode .terminal-page .terminal-stage {
+  position: static !important;
+  inset: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+html.touch-input-mode.terminal-layer-mode .terminal-page .terminal-header {
+  position: static !important;
+  inset: auto !important;
+  padding: 6px 7px 5px;
+  gap: 5px;
+}
+
+html.touch-input-mode.terminal-layer-mode .terminal-page .terminal-header-main {
+  gap: 6px;
+}
+
+html.touch-input-mode.terminal-layer-mode .terminal-page .terminal-actions {
+  gap: 5px;
+}
+
+html.touch-input-mode.terminal-layer-mode .terminal-page button,
+html.touch-input-mode.terminal-layer-mode .terminal-page .ghost,
+html.touch-input-mode.terminal-layer-mode .terminal-page #close-session {
+  min-height: 30px;
+  padding: 4px 7px;
+  border-radius: 9px;
+  font-size: 0.64rem;
+}
+
+html.touch-input-mode.terminal-layer-mode .terminal-page .terminal-menu-button {
+  width: 32px;
+  min-width: 32px;
+  min-height: 30px;
+  padding: 5px;
+}
+
+html.touch-input-mode.terminal-layer-mode .terminal-page .terminal-arrow-pad {
+  gap: 2px;
+}
+
+html.touch-input-mode.terminal-layer-mode .terminal-page .terminal-arrow-key {
+  min-width: 28px;
+  width: 28px;
+  padding-inline: 0;
+  font-size: 0.76rem;
+}
+
+html.touch-input-mode.terminal-layer-mode .terminal-page .session-title-row h2 {
+  font-size: 0.76rem;
+  line-height: 1;
+}
+
+html.touch-input-mode.terminal-layer-mode .terminal-page .toolbar-meta {
+  font-size: 0.58rem;
+  line-height: 1;
+}
+
+html.touch-input-mode.terminal-layer-mode .session-panel .section-kicker,
+html.touch-input-mode.terminal-layer-mode .session-panel .browser-current,
+html.touch-input-mode.terminal-layer-mode .session-panel .directory-summary {
+  font-size: 0.58rem;
+  line-height: 1;
+}
+
+html.touch-input-mode.terminal-layer-mode .session-panel h2 {
+  font-size: 0.76rem;
+  line-height: 1;
+}
+
+html.touch-input-mode.terminal-layer-mode .session-panel button,
+html.touch-input-mode.terminal-layer-mode .session-panel .ghost {
+  min-height: 30px;
+  padding: 4px 7px;
+  border-radius: 9px;
+  font-size: 0.64rem;
+}
+
+html.touch-input-mode.terminal-layer-mode .session-panel .icon-button {
+  min-width: 32px;
+  min-height: 30px;
+  padding: 5px;
+}
+
+html.touch-input-mode.terminal-layer-mode .session-panel .directory-entry {
+  min-height: 30px;
+  padding: 4px 7px;
+  border-radius: 9px;
+  font-size: 0.64rem;
+}
+
+html.touch-input-mode.terminal-layer-mode .session-panel .directory-copy strong {
+  font-size: 0.64rem;
+  line-height: 1.05;
+}
+
+html.touch-input-mode.terminal-layer-mode .session-panel .directory-copy span {
+  font-size: 0.56rem;
+  line-height: 1.05;
 }

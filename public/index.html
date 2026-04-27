@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
     <title>Codex/CC Web Terminal</title>
     <link rel="stylesheet" href="/vendor/xterm.css" />
     <link rel="stylesheet" href="/styles.css" />
@@ -16,7 +16,7 @@
             <div>
               <p class="eyebrow">Browser terminal</p>
               <h1>Codex/CC Web Terminal</h1>
-              <p>Authenticate once, then switch sessions and browse project paths from the side menu.</p>
+              <p>Authenticate once, then switch threads and browse project paths from the side menu.</p>
             </div>
           </div>
           <label class="field">
@@ -26,7 +26,7 @@
           <div class="actions single">
             <button id="connect">Connect</button>
           </div>
-          <p class="hint">The workspace keeps sessions on the left and terminal control on the right.</p>
+          <p class="hint">The workspace keeps threads on the left and terminal control on the right.</p>
         </div>
       </section>
 
@@ -35,26 +35,14 @@
 
         <aside class="session-panel" id="session-panel" aria-hidden="true">
           <div class="session-panel-shell">
-            <div class="session-panel-top">
-              <div>
-                <p class="section-kicker">Project files</p>
-                <h2>Current folder</h2>
-              </div>
-              <button id="close-panel" class="icon-button ghost" type="button" aria-label="Close menu">Close</button>
-            </div>
-
             <section class="sidebar-section">
-              <div class="sidebar-section-head">
-                <div>
-                  <p class="section-kicker">Project paths</p>
-                  <h2>Browse files</h2>
-                </div>
-              </div>
               <div class="directory-actions">
                 <button id="browse-up" class="ghost" type="button">Up</button>
-                <button id="sync-browser-path" class="ghost" type="button">Session Dir</button>
+                <button id="sync-browser-path" class="ghost" type="button">Thread Dir</button>
+                <button id="close-panel" class="icon-button ghost" type="button" aria-label="Close menu">Close</button>
               </div>
               <div id="browser-current" class="browser-current">No folder loaded.</div>
+              <div id="directory-summary" class="directory-summary"></div>
               <div id="directory-tree" class="directory-tree"></div>
             </section>
           </div>
@@ -72,7 +60,7 @@
                     <button id="back-to-connect" class="ghost session-back-button" type="button">Back</button>
                   </div>
                   <p class="session-launchpad-copy">
-                    Start from a folder, give the session a short name if needed, then open it in the CLI page.
+                    Start from a folder, give the thread a short name if needed, then open it in the CLI page.
                   </p>
                   <div class="session-rack-form">
                     <label class="field">
@@ -97,11 +85,11 @@
                       </div>
                     </label>
                     <label class="field">
-                      <span>Session name</span>
+                      <span>Thread name</span>
                       <input id="session-name" type="text" placeholder="Optional label" />
                     </label>
                     <div class="actions">
-                      <button id="new-session" disabled>New Session</button>
+                      <button id="new-session" disabled>New Thread</button>
                     </div>
                   </div>
                 </section>
@@ -114,43 +102,52 @@
             </section>
           </section>
 
-          <section class="workspace-screen hidden" id="workspace-terminal">
-            <div class="workspace-topbar terminal-topbar">
-              <div class="terminal-topbar-main">
-                <div class="toolbar-left">
-                  <button id="back-to-sessions" class="ghost" type="button">Sessions</button>
-                  <button id="open-panel" class="icon-button ghost" type="button" aria-label="Open menu">
+          <section class="workspace-screen terminal-page hidden" id="workspace-terminal">
+            <header class="terminal-header terminal-topbar">
+              <div class="terminal-header-main">
+                <div class="terminal-nav">
+                  <button id="back-to-sessions" class="ghost" type="button">Threads</button>
+                  <button id="open-panel" class="icon-button ghost terminal-menu-button" type="button" aria-label="Open menu">
                     <span></span>
                     <span></span>
                     <span></span>
                   </button>
                 </div>
-                <div class="toolbar-title">
+
+                <div class="terminal-title">
                   <p id="active-session-provider" class="section-kicker">CLI</p>
                   <div class="session-title-row">
-                    <h2 id="active-session-name">No active session</h2>
+                    <h2 id="active-session-name">No active thread</h2>
                     <button id="edit-session-name" class="ghost session-title-edit" type="button" disabled>Edit</button>
                   </div>
                   <div id="session-name-editor" class="session-name-editor hidden">
-                    <input id="session-name-inline" type="text" maxlength="120" placeholder="Rename session" />
+                    <input id="session-name-inline" type="text" maxlength="120" placeholder="Rename thread" />
                     <button id="save-session-name" class="ghost" type="button">Save</button>
                     <button id="cancel-session-name" class="ghost" type="button">Cancel</button>
                   </div>
-                  <p id="active-session-meta" class="toolbar-meta">Open a session to start.</p>
+                  <p id="active-session-meta" class="toolbar-meta">Open a thread to start.</p>
                 </div>
               </div>
-              <div class="toolbar-actions terminal-actions">
+
+              <div class="terminal-actions">
                 <button id="copy-terminal" class="ghost" disabled>Copy</button>
                 <button id="paste-terminal" class="ghost" disabled>Paste</button>
-                <button id="close-session" disabled>Close Session</button>
+                <button id="esc-key" class="ghost" type="button" aria-label="Send Escape">Esc</button>
+                <button id="close-session" type="button" disabled>Close</button>
+                <div class="terminal-arrow-pad" aria-label="Arrow keys">
+                  <button class="ghost terminal-arrow-key" type="button" data-arrow-key="left" aria-label="Arrow left">←</button>
+                  <button class="ghost terminal-arrow-key" type="button" data-arrow-key="up" aria-label="Arrow up">↑</button>
+                  <button class="ghost terminal-arrow-key" type="button" data-arrow-key="down" aria-label="Arrow down">↓</button>
+                  <button class="ghost terminal-arrow-key" type="button" data-arrow-key="right" aria-label="Arrow right">→</button>
+                </div>
               </div>
-            </div>
+            </header>
 
-            <div class="terminal-shell terminal-shell-page">
+            <main class="terminal-stage terminal-shell terminal-shell-page">
               <div id="terminal" class="terminal"></div>
-              <button id="esc-key" type="button" aria-label="Send Escape">Esc</button>
-            </div>
-            <div class="mobile-composer" id="mobile-composer">
+            </main>
+
+            <div class="keyboard-bridge mobile-composer" id="mobile-composer" aria-hidden="true">
               <button id="composer-esc" class="composer-side ghost" type="button" aria-label="Send Escape">Esc</button>
               <div class="composer-input-shell">
                 <textarea
@@ -162,7 +159,6 @@
                   spellcheck="false"
                   enterkeyhint="send"
                   rows="1"
-                  placeholder="Type into session"
                   aria-label="Terminal input"
                 ></textarea>
               </div>
